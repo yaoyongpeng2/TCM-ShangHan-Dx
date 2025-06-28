@@ -57,25 +57,26 @@ class TestDiagnosis(unittest.TestCase):
             "外证未解":"先发汗不解"           
         }
         self.expected_avg={
-            "桂枝汤":{"太阳病":Decimal('1'),"发热":Decimal('0.25'),"恶寒":Decimal('0.25'),"汗出":Decimal('0.25'),"恶风":Decimal('0.25'),"先发汗不解":Decimal('0.75'),"脉浮弱":Decimal('0.25'),"脉浮":Decimal('0.25')},#"先发汗不解"="外证未解"
-            "桂枝加葛根汤":{"太阳病":Decimal('1.0'),"项背强几几":Decimal('1.0'),"汗出":Decimal('1.0'),"恶风":Decimal('1.0')},
-            "桂枝二越婢一汤":{"太阳病":Decimal('1.0'),"发热":Decimal('1.0'),"恶寒":Decimal('1.0'),"热多寒少":Decimal('1.0'),"脉微弱":Decimal('1.0')},
-            "麻黄汤":{"太阳病":Decimal('1.0'),"头痛":Decimal('1.0'),"发热":Decimal('1.0'),"身疼":Decimal('1.0'),"腰痛":Decimal('1.0'),"骨节疼痛":Decimal('1.0'),"恶风":Decimal('1.0'),"无汗":Decimal('1.0'),"喘":Decimal('1.0')}
+            "桂枝汤":{"太阳病":'1',"发热":'0.25',"恶寒":'0.25',"汗出":'0.25',"恶风":'0.25',"先发汗不解":'0.75',"脉浮弱":'0.25',"脉浮":'0.25'},#"先发汗不解"="外证未解"
+            "桂枝加葛根汤":{"太阳病":'1.0',"项背强几几":'1.0',"汗出":'1.0',"恶风":'1.0'},
+            "桂枝二越婢一汤":{"太阳病":'1.0',"发热":'1.0',"恶寒":'1.0',"热多寒少":'1.0',"脉微弱":'1.0'},
+            "麻黄汤":{"太阳病":'1.0',"头痛":'1.0',"发热":'1.0',"身疼":'1.0',"腰痛":'1.0',"骨节疼痛":'1.0',"恶风":'1.0',"无汗":'1.0',"喘":'1.0'}
         }
         self.expected_tf_idf1={
-            "桂枝汤":{"太阳病":Decimal('0.00'),"发热":Decimal('0.010'),"恶寒":Decimal('0.023'),"汗出":Decimal('0.023'),"恶风":Decimal('0.010'),"先发汗不解":Decimal('0.139'),"脉浮弱":Decimal('0.046'),"脉浮":Decimal('0.046')},#"先发汗不解"="外证未解"
-            "桂枝加葛根汤":{"太阳病":Decimal('0.0'),"项背强几几":Decimal('0.151'),"汗出":Decimal('0.075'),"恶风":Decimal('0.031')},
-            "桂枝二越婢一汤":{"太阳病":Decimal('0.0'),"发热":Decimal('0.025'),"恶寒":Decimal('0.06'),"热多寒少":Decimal('0.120'),"脉微弱":Decimal('0.120')},
-            "麻黄汤":{"太阳病":Decimal('0.00'),"头痛":Decimal('0.067'),"发热":Decimal('0.014'),"身疼":Decimal('0.067'),"腰痛":Decimal('0.067'),"骨节疼痛":Decimal('0.067'),"恶风":Decimal('0.014'),"无汗":Decimal('0.067'),"喘":Decimal('0.067')}
+            "桂枝汤":{"太阳病":'0.00',"发热":'0.010',"恶寒":'0.023',"汗出":'0.023',"恶风":'0.010',"先发汗不解":'0.139',"脉浮弱":'0.046',"脉浮":'0.046'},#"先发汗不解"="外证未解"
+            "桂枝加葛根汤":{"太阳病":'0.0',"项背强几几":'0.151',"汗出":'0.075',"恶风":'0.031'},
+            "桂枝二越婢一汤":{"太阳病":'0.0',"发热":'0.025',"恶寒":'0.06',"热多寒少":'0.120',"脉微弱":'0.120'},
+            "麻黄汤":{"太阳病":'0.00',"头痛":'0.067',"发热":'0.014',"身疼":'0.067',"腰痛":'0.067',"骨节疼痛":'0.067',"恶风":'0.014',"无汗":'0.067',"喘":'0.067'}
         }
         self.expected_tf_idf2={#key的格式="条文编号-方名-防同名方剂后缀"，类似数据库的多列主键
-            "13-桂枝汤-0":{"太阳病":Decimal('0.00'),"发热":Decimal('0.074'),"恶寒":Decimal('0.109'),"汗出":Decimal('0.109'),"恶风":Decimal('0.074')},
-            "14-桂枝加葛根汤-0":{"太阳病":Decimal('0.0'),"项背强几几":Decimal('0.211'),"汗出":Decimal('0.136'),"恶风":Decimal('0.092')},
-            "27-桂枝二越婢一汤-0":{"太阳病":Decimal('0.0'),"发热":Decimal('0.074'),"恶寒":Decimal('0.109'),"热多寒少":Decimal('0.169'),"脉微弱":Decimal('0.169')},
-            "35-麻黄汤-0":{"太阳病":Decimal('0.00'),"头痛":Decimal('0.094'),"发热":Decimal('0.041'),"身疼":Decimal('0.094'),"腰痛":Decimal('0.094'),"骨节疼痛":Decimal('0.094'),"恶风":Decimal('0.041'),"无汗":Decimal('0.094'),"喘":Decimal('0.094')},
-            "42-桂枝汤-0":{"太阳病":Decimal('0.00'),"先发汗不解":Decimal('0.123'),"脉浮弱":Decimal('0.282')},
-            "44-桂枝汤-0":{"太阳病":Decimal('0.00'),"先发汗不解":Decimal('0.184')},
-            "45-桂枝汤-0":{"太阳病":Decimal('0.00'),"先发汗不解":Decimal('0.123'),"脉浮":Decimal('0.282')}
+            "13-桂枝汤-0":{"太阳病":'0.00',"发热":'0.074',"恶寒":'0.109',"汗出":'0.109',"恶风":'0.074'},
+            "14-桂枝加葛根汤-0":{"太阳病":'0.0',"项背强几几":'0.211',"汗出":'0.136',"恶风":'0.092'},
+            "27-桂枝二越婢一汤-0":{"太阳病":'0.0',"发热":'0.074',"恶寒":'0.109',"热多寒少":'0.169',"脉微弱":'0.169'},
+            "35-麻黄汤-0":{"太阳病":'0.00',"头痛":'0.094',"发热":'0.041',"身疼":'0.094',"腰痛":'0.094',"骨节疼痛":'0.094',"恶风":'0.041',"无汗":'0.094',"喘":'0.094'},
+            "42-桂枝汤-0":{"太阳病":'0.00',"先发汗不解":'0.123',"脉浮弱":'0.282'},
+            "44-桂枝汤-0":{"太阳病":'0.00',"先发汗不解":'0.184'},
+            "45-桂枝汤-0":{"太阳病":'0.00',"先发汗不解":'0.123',"脉浮":'0.282'}
+
         }
 
         
@@ -112,7 +113,7 @@ class TestDiagnosis(unittest.TestCase):
             for fang_synd in entry.fang_synds:
                 for synd,weight in fang_synd.syndromes.items():
                     norm_synd=diagnosis.normalize_term(synd,self.norm)
-                    assert expected[fang_synd.fang][norm_synd]==weight
+                    assert Decimal(expected[fang_synd.fang][norm_synd])==weight
 
     def _test_build_correlation_tf_idf_1(self):
         self.prepare_data()
@@ -123,7 +124,7 @@ class TestDiagnosis(unittest.TestCase):
             for fang_synd in entry.fang_synds:
                 for synd,weight in fang_synd.syndromes.items():
                     norm_synd=diagnosis.normalize_term(synd,self.norm)
-                    assert expected[fang_synd.fang][norm_synd]==weight
+                    assert Decimal(expected[fang_synd.fang][norm_synd])==weight
 
     def _test_build_correlation_tf_idf_2(self):
         self.prepare_data()
@@ -135,7 +136,7 @@ class TestDiagnosis(unittest.TestCase):
                 new_fang_key=f"{entry.clause_id}-{fang_synd.fang}-{index}"
                 for synd,weight in fang_synd.syndromes.items():
                     norm_synd=diagnosis.normalize_term(synd,self.norm)
-                    assert expected[new_fang_key][norm_synd]==weight
+                    assert Decimal(expected[new_fang_key][norm_synd])==weight
 
 if  __name__=="__main__":
     unittest.main()
