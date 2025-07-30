@@ -2,9 +2,11 @@ from cmath import log
 import csv
 from decimal import *
 from enum import Enum, auto
+from math import sqrt
 import os,regex
 from pathlib import Path
 from collections import defaultdict
+import numpy as np
 def find_project_root(file_abs_path:str, anchor_dir:str)->str:
     parts=[part for part in Path(file_abs_path).parts]
     uplevel=len(parts)-1-parts.index(anchor_dir)
@@ -52,6 +54,7 @@ class Correl(Enum):
     AVG=auto()
     TF_IDF_1=auto()
     TF_IDF_2=auto()
+    BM25=auto()
 class Diagnosis:
 
     _instance=None
@@ -81,8 +84,10 @@ class Diagnosis:
             self.build_correlation_avg()
         elif correl==Correl.TF_IDF_1:
             self.build_correlation_tf_idf_1()
-        else:
+        elif correl==Correl.TF_IDF_2:
             self.build_correlation_tf_idf_2()
+        else:
+            self.build_correlation_BM25()
         self._initialized=True
 
     def load_fang_zheng_relation(self)->list[ClauseFangSynd]:
@@ -183,32 +188,6 @@ class Diagnosis:
             term_dict.add(fang_synd.fang for entry in self.clause_fang_synds for fang_synd in entry.fang_synds )
         return term_dict
 
-    # def fang_synd_count(self,clause_fang_synds:list[ClauseFangSynd],norm:dict[str,str]=None)->defaultdict[str, dict[str,int]]:
-    #     co_occurs=defaultdict(lambda:defaultdict(int))
-    #     for entry in clause_fang_synds:
-    #         for fang_synd in entry.fang_synds:
-    #             fang=fang_synd.fang
-    #             syndromes=fang_synd.syndromes
-    #             for synd in syndromes:
-    #                 co_occurs[fang][self.normalize_term(synd,norm)]+=1
-    #     return co_occurs
-
-    #{id=12，"桂枝汤"：["阳浮"(→热自发→发热),"阴弱"(→汗自出→汗出),"啬啬恶寒"(→"恶寒"),"淅淅恶风"(→恶风),"翕翕发热"(→"发热"),"鼻鸣","干呕"]}
-    #方剂→文档，文档内容该方剂在所有条文中的证候集合。
-    # 条文中所有方剂→文档集合，假设以下为所有条文：
-    #{id=13,"桂枝汤":["发热","恶寒","汗出"]}
-    #{id=14,"桂枝加葛根汤":["太阳病","项背强几几","汗出","恶风]}
-    #{id=27，"桂枝二越婢一汤":[太阳病","发热","恶寒","热多寒少","脉微弱"]}
-    #{id=35，"麻黄汤":太阳病","头痛","发热","身疼","腰痛","骨节疼痛","恶风","无汗","喘"}
-    #{id=42,"桂枝汤":["太阳病","外证未解"(=先发汗不解),"脉浮弱"]
-    #{id=44，"桂枝汤":["太阳病","外证未解"]}
-    #{id=45,"桂枝汤":["太阳病","先发汗不解"(=先发汗不解),"脉浮"]}
-    #则"桂枝汤"是一个文档，其中的词汇有{"发热","恶寒","汗出"，"太阳病","外证未解","脉浮弱","先发汗不解"}
-    #TF("发热"，"桂枝汤")=(#13(1)+#27(1)+#35(1)/(#13(3)+#42(3)+#44(2个重复=0)+#45(3-2个重复=1))=3/4=0.75
-    #文档总数=桂枝汤（1)+麻黄汤(1)+桂枝二越婢一汤(1)+桂枝加葛根汤(1)=4
-    #含"发热"的文档数=桂枝汤（1)+麻黄汤(1)+桂枝二越婢一汤(1)=3
-    #IDF("发热")=log(文档总数/包含文档数)=log(4/3)=0.125
-    #TF-IDF("发热")=0.75*0.125=0.09
     def build_correlation_tf_idf_1(self):
         """
         算法思路：证候=词语,方剂=文档，而且同名的方剂的所有证候都算在一个文档里。
@@ -273,17 +252,17 @@ class Diagnosis:
         #return correlations
 
     #转成字典，#key的格式="条文编号-方名-防同名方剂后缀（因为同一条文可能多次使用同一方剂，故方名后加数字后缀）
-    def _convert_data(self,clause_fang_synds:list[ClauseFangSynd])->dict[str,dict[str,Decimal]]:
-        clause_fang_synd_dict=defaultdict(lambda:defaultdict(Decimal))
-        for entry in clause_fang_synds:
-            for index, fang_synd in enumerate(entry.fang_synds):
-                new_key=f"{entry.clause_id}-{fang_synd.fang}-{index}"
-                clause_fang_synd_dict[new_key]={s:Decimal(0.0) for s in fang_synd.syndromes}
-        return clause_fang_synd_dict
+    # def _convert_data(self,clause_fang_synds:list[ClauseFangSynd])->dict[str,dict[str,Decimal]]:
+    #     clause_fang_synd_dict=defaultdict(lambda:defaultdict(Decimal))
+    #     for entry in clause_fang_synds:
+    #         for index, fang_synd in enumerate(entry.fang_synds):
+    #             new_key=f"{entry.clause_id}-{fang_synd.fang}-{index}"
+    #             clause_fang_synd_dict[new_key]={s:Decimal(0.0) for s in fang_synd.syndromes}
+    #     return clause_fang_synd_dict
     def build_correlation_tf_idf_2(self):
         """
         算法思路：证候=词语,方剂=文档，某个条文里的方剂（后简称条文方剂）算一个文档，即使该方剂名重复出现，
-        不足是：因为一个条文方剂的所有证候是集合，不会重复，故TF总是相同，故不再有意义
+        因为一个条文方剂的所有证候是集合，一般不会重复，故TF总是相同，故不再有意义
         好处是：推荐更匹配条文方剂，而不是仅仅是方剂
         TF(Term Frequency)-词频
         TF(s, f) = (证候 s 在方剂 d 中出现的次数) / (方剂 f 中所有证候的总数)
@@ -335,9 +314,77 @@ class Diagnosis:
                 for synd in fang_synd.syndromes:
                     norm_synd=self.normalize_term(synd,self.norm)
                     fang_synd.syndromes[synd]=clause_fang_synd_dict[new_fang_key][norm_synd]
-        #return clause_fang_synd_dict
 
-    #相关性统计
+    def build_correlation_BM25(self):
+        """
+        算法思路：证候=词语,方剂=文档，某个条文里的方剂（后简称条文方剂）算一个文档，即使该方剂名重复出现。
+        这一点同tf-idf2，但改进之处有2点：
+        1.会统计证候在条文方剂中的次数（通常为1），但不再除以条文方剂中所有证候的总数，这个归一化包含在第2点改进中
+        2.匹配分数不再是权重求和，而是计算证候权重向量和查询证候向量的余弦相似度，好处：
+          2.1 因为余弦取值范围在[-1,1]（本算法实际只会在[0,1])所以天然归一化。
+          2.2结果更倾向于完全匹配的条文方剂，举例：
+          查询证候：v_query={A,B]
+          条文方剂1：{A:0.4,B:0.4, C:0.4,D:0.4}→ 
+          sum=0.4*1+0.4*1+0.4*0+0.4*0=0.8,
+          cos=sum/sqrt(0.4^2+0.4^2+0.4^2+0.4^2)*sqrt(1*1+1*1)=0.71
+          条文方剂2：{A:0.3,B:0.3}→ 
+          sum=0.3*1+0.3*1=0.6,
+          cos=sum/sqrt(0.3^2+0.3^2)*sqrt(1*1+1*1)=1.00
+          按权重求和，当选条文方剂1，按余弦相似度当选条文方剂2。但条文方剂2是完全匹配，所以更应选中，所以余弦相似度更合理
+        TC(Term Count)-词次数
+        TC(s, f) = (证候 s 在方剂 d 中出现的次数)（注意不再 除以 (方剂 f 中所有证候的总数))
+        IDF (Inverse Document Frequency) - 逆文档频率
+        IDF(s, F) = log(方剂集合 F 中的总方剂数 / 包含证候 s 的方剂数))
+        """
+        
+        #转成字典，#key的格式="条文编号-方名-防同名方剂后缀（因为同一条文可能多次使用同一方剂，故方名后加数字后缀）
+        #TF的分子=证候 s 在方剂 f 中出现的次数=一般为1
+        #TF的分母=条文方剂 c_f 中所有证候的总数
+        clause_fang_synd_dict=defaultdict(lambda:defaultdict(Decimal))
+        for entry in self.clause_fang_synds:
+            for index, fang_synd in enumerate(entry.fang_synds):
+                new_fang_key=f"{entry.clause_id}-{fang_synd.fang}-{index}"
+                clause_fang_synd_dict[new_fang_key]={self.normalize_term(s,self.norm):Decimal() for s in fang_synd.syndromes}
+
+        #TF(s, f) = (证候 s 在方剂 f 中出现的次数) / (方剂 f 中所有证候的总数)
+        tf=defaultdict(lambda:defaultdict(Decimal))
+        for fang in clause_fang_synd_dict:
+            for synd in clause_fang_synd_dict[fang]:
+                #避免因二进制浮点数无法精确表示十进制数量而可能出现的问题，使用Decimal,方便相等性测试
+                #tf[fang][synd]=Decimal(1)/Decimal(len(clause_fang_synd_dict[fang].keys()))#一个条方的证候不会重复，故总是1
+                tf[fang][synd]=Decimal(1)#不再/ (方剂 f 中所有证候的总数)
+                #一个条方的证候不会重复，故目前是1，以后会修改：1. 调整词频饱和度，2.减低文档长度的影响
+        
+        # IDF的分子=方剂集合 F 中的总"条文方剂"数
+        fang_count=len(clause_fang_synd_dict.keys())
+
+        #IDF的分母=包含证候 s 的方剂数
+        #synd_fang=defaultdict(set)#同一方剂多次包含算多次,故不用set
+        synd_fang=defaultdict(list)#因为新方名带claus_id和列表索引，不重复，故set list都可以
+        for fang, synds in clause_fang_synd_dict.items():
+            for synd in synds:
+                synd_fang[self.normalize_term(synd,self.norm)].append(fang)
+        
+        idf=defaultdict(lambda:defaultdict(Decimal))
+        for synd in synd_fang:
+            #idf[synd]=Decimal(log(Decimal(len(synd_fang[synd]))/Decimal(fang_count),10))#精度有缺失
+            idf[synd]=(Decimal(fang_count)/Decimal(len(synd_fang[synd]))).log10()#精度一直不缺失
+
+        #correlations=defaultdict(lambda:defaultdict(Decimal))
+        for fang in clause_fang_synd_dict:
+            for synd in clause_fang_synd_dict[fang]:
+                #Decimal + 四舍五入 保留精度，方便以后相等性测试
+                clause_fang_synd_dict[fang][synd]=(tf[fang][synd]*idf[synd]).quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
+        
+        #更新到原始数据
+        for entry in self.clause_fang_synds:
+            for index,fang_synd in enumerate(entry.fang_synds):
+                new_fang_key=f"{entry.clause_id}-{fang_synd.fang}-{index}"
+                for synd in fang_synd.syndromes:
+                    norm_synd=self.normalize_term(synd,self.norm)
+                    fang_synd.syndromes[synd]=clause_fang_synd_dict[new_fang_key][norm_synd]
+
+    #平均发相关性统计
     def build_correlation_avg(self):
     #    from collections import defaultdict
         #co_occurs=self.fang_synd_count(self.clause_fang_synds,self.norm)
@@ -386,22 +433,29 @@ class Diagnosis:
 
 
      #遍历全部条文，逐个计算，然后排序，全程不会丢失 条文-方剂 对应关系
-    def recommend_fang(self,syndromes:set[str])->list[Recommend]:
+    def recommend_fang(self,query_synds:set[str])->list[Recommend]:
         recommends:list[Recommend]=[]
         if not hasattr(self,"clauses"):
             self.clauses=self.load_SHL_clauses()
-
-        norm_input_synds={self.normalize_term(s,self.norm) for s in syndromes}
+        
+        query={self.normalize_term(s,self.norm):1 for s in query_synds}
         for entry in self.clause_fang_synds:
             id=entry.clause_id
             clause=self.clauses[id]
             score=Decimal(0)
             for fang_synd in entry.fang_synds:
-                for synd in fang_synd.syndromes:
-                    norm_synd=self.normalize_term(synd,self.norm)
-                    if norm_synd in norm_input_synds:
-                        score +=fang_synd.syndromes[synd]
+                clause_fang={self.normalize_term(s,self.norm):\
+                                fang_synd.syndromes[s] for s in fang_synd.syndromes}
+                dot=sum(query.get(s,0)*clause_fang.get(s,0) for s in query)
+                query_norm=Decimal(sum(val**2 for val in query.values())).sqrt()
+                clause_fang_norm=Decimal(sum(v**2 for v in clause_fang.values())).sqrt()
+                score=dot/query_norm/clause_fang_norm
                 recommends.append(Recommend(clause_id=id, clause=clause,fang_synd=fang_synd,match_score=score))#一条文多方剂列表会被拆成多条单方剂
+            
+            # for synd in fang_synd.syndromes:
+            #         norm_synd=self.normalize_term(synd,self.norm)
+            #         if norm_synd in norm_query_synds:
+            #             score +=fang_synd.syndromes[synd]
         sorted_recommends=sorted(recommends,key=lambda x: x.match_score,reverse=True)
         return sorted_recommends
 
