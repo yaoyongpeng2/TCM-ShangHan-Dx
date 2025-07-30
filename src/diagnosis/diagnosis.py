@@ -24,30 +24,30 @@ FANG_NAME_FILE=f"{RESOURCE_DIR}/dict/方名_词典.txt"#方剂名，预先手工
 PULSE_TONGUE_DX_FILE=f"{RESOURCE_DIR}/dict/脉舌诊_词典.txt"#脉象、舌象，预先手工提取，比较精确
 
 from pydantic import BaseModel
-class FangSynd(BaseModel):
+class FangPatn(BaseModel):
     fang:str
-    syndromes:dict[str,Decimal]#证：证的权重，用Decimal，不用float，防止二进制表示会丢失精度，不利于比较
+    patterns:dict[str,Decimal]#证：证的权重，用Decimal，不用float，防止二进制表示会丢失精度，不利于比较
 
-class ClauseFangSynd(BaseModel):
+class ClauseFangPatn(BaseModel):
     clause_id:int#伤寒论条文编号
 #    clause:str#伤寒论条文原文,引用self.clauses
-    fang_synds:list[FangSynd]=[]
+    fang_patns:list[FangPatn]=[]
 
-    # def __init__(self, clause_id, fang_synds:list[FangSynd]=[]):
-    #     super().__init__(clause_id=clause_id, fang_synds=fang_synds)
+    # def __init__(self, clause_id, fang_patns:list[FangPatn]=[]):
+    #     super().__init__(clause_id=clause_id, fang_patns=fang_patns)
     #     self.clause_id=clause_id
-    #     self.fang_synds=fang_synds
+    #     self.fang_patns=fang_patns
 
 class Recommend(BaseModel):
     clause_id:int
     clause:str#伤寒论条文原文
-    fang_synd:FangSynd
+    fang_patn:FangPatn
     match_score:float=0.0
-    # def __init__(self, clause_id:int, clause:str,fang_synd:FangSynd,score:float=0.0):
-    #     super().__init__(clause_id=clause_id, clause=clause,fang_synd=fang_synd,match_score=score)
+    # def __init__(self, clause_id:int, clause:str,fang_patn:FangPatn,score:float=0.0):
+    #     super().__init__(clause_id=clause_id, clause=clause,fang_patn=fang_patn,match_score=score)
     #     self.clause_id=clause_id
     #     self.clause=clause
-    #     self.fang_synd=fang_synd
+    #     self.fang_patn=fang_patn
     #     self.match_score=score
 
 class Correl(Enum):
@@ -65,21 +65,21 @@ class Diagnosis:
     #         cls._instance._initialized=False
     #     return cls._instance
  
-    def __init__(self,norm:dict[str,str]=None,clause_fang_synds:list[ClauseFangSynd]=None, correl:Correl=Correl.AVG):
+    def __init__(self,norm:dict[str,str]=None,clause_fang_patns:list[ClauseFangPatn]=None, correl:Correl=Correl.AVG):
         # if self._initialized==True:
         #     return
         if hasattr(self,"norm") and self.norm==norm\
-              and hasattr(self,"clause_fang_synds") and self.clause_fang_synds==clause_fang_synds:
+              and hasattr(self,"clause_fang_patns") and self.clause_fang_patns==clause_fang_patns:
             return
         #读入同义词
         self.norm=norm
         if not self.norm:
             self.norm=self.load_synonyms()
         #读入方证对应关系
-        self.clause_fang_synds=clause_fang_synds
-        if not self.clause_fang_synds:
-            self.clause_fang_synds=self.load_fang_zheng_relation()
-        #self.synd_set=self.consolidate_term()
+        self.clause_fang_patns=clause_fang_patns
+        if not self.clause_fang_patns:
+            self.clause_fang_patns=self.load_fang_zheng_relation()
+        #self.patn_set=self.consolidate_term()
         if correl==Correl.AVG:
             self.build_correlation_avg()
         elif correl==Correl.TF_IDF_1:
@@ -90,14 +90,14 @@ class Diagnosis:
             self.build_correlation_BM25()
         self._initialized=True
 
-    def load_fang_zheng_relation(self)->list[ClauseFangSynd]:
-        clause_fang_synds: list[ClauseFangSynd]=[]
+    def load_fang_zheng_relation(self)->list[ClauseFangPatn]:
+        clause_fang_patns: list[ClauseFangPatn]=[]
         if not hasattr(self,"clauses"):
             clauses=self.load_SHL_clauses()
             self.clauses=clauses
 
         try:
-            temp_dict=defaultdict[int,list[FangSynd]](list)
+            temp_dict=defaultdict[int,list[FangPatn]](list)
             with open(FANG_ZHENG_FILE, "r", encoding="utf-8") as f:
                 reader=csv.reader(f,delimiter=',')
                 for row in reader:
@@ -106,14 +106,14 @@ class Diagnosis:
                     id=int(row[0])
                     clause=clauses[id]
                     fang=row[1].strip()
-                    synds={synd.strip():Decimal() for synd in row[2:]if synd.strip()}
-                    fang_synd=FangSynd(fang=fang,syndromes=synds)
-                    temp_dict[id].append(fang_synd)
-            clause_fang_synds=[ClauseFangSynd(clause_id=id,fang_synds=v) for id,v in temp_dict.items()]
+                    patns={patn.strip():Decimal() for patn in row[2:]if patn.strip()}
+                    fang_patn=FangPatn(fang=fang,patterns=patns)
+                    temp_dict[id].append(fang_patn)
+            clause_fang_patns=[ClauseFangPatn(clause_id=id,fang_patns=v) for id,v in temp_dict.items()]
         except Exception as e:
             print(f"{e.__class__.__name__}:{e}")
         
-        return clause_fang_synds
+        return clause_fang_patns
                     
     def load_SHL_clauses(self)->dict[int,str]:
         clauses:dict[int,str]=[]
@@ -178,14 +178,14 @@ class Diagnosis:
 
     def consolidate_term(self,includeNorm=True,includeFang=True)->set[str]:
         term_dict:set[str]=set()
-        for entry in self.clause_fang_synds:
-            for fang_synd in entry.fang_synds:
-                term_dict.update(fang_synd.syndromes.keys())
+        for entry in self.clause_fang_patns:
+            for fang_patn in entry.fang_patns:
+                term_dict.update(fang_patn.patterns.keys())
         if includeNorm and self.norm!=None:
             term_dict.update(self.norm.keys())
             term_dict.update(self.norm.values())
         if includeFang:
-            term_dict.add(fang_synd.fang for entry in self.clause_fang_synds for fang_synd in entry.fang_synds )
+            term_dict.add(fang_patn.fang for entry in self.clause_fang_patns for fang_patn in entry.fang_patns )
         return term_dict
 
     def build_correlation_tf_idf_1(self):
@@ -198,67 +198,67 @@ class Diagnosis:
         """
          
         #TF的分子=证候 s 在方剂 f 中出现的次数        
-        fang_one_synd_count=defaultdict(lambda:defaultdict(int))
-        for entry in self.clause_fang_synds:
-            for fang_synd in entry.fang_synds:
-                fang=fang_synd.fang
-                syndromes=fang_synd.syndromes
-                for synd in syndromes:
-                    fang_one_synd_count[fang][self.normalize_term(synd,self.norm)]+=1
+        fang_one_patn_count=defaultdict(lambda:defaultdict(int))
+        for entry in self.clause_fang_patns:
+            for fang_patn in entry.fang_patns:
+                fang=fang_patn.fang
+                patterns=fang_patn.patterns
+                for patn in patterns:
+                    fang_one_patn_count[fang][self.normalize_term(patn,self.norm)]+=1
        
         #TF的分母=方剂 f 中所有证候的总数
-        fang_all_synd_sum=defaultdict(int)
-        for fang in fang_one_synd_count:
-            #fang_all_synd_count[fang]=len(co_occurs[fang].keys())#按证候种类计数，错
+        fang_all_patn_sum=defaultdict(int)
+        for fang in fang_one_patn_count:
+            #fang_all_patn_count[fang]=len(co_occurs[fang].keys())#按证候种类计数，错
             #应该按证候词语出现次数总数计数，否则若某个词语出现次数很多次，而按种类只计数1次，则导致此词语TF>1，不符合归一化的初衷。
-            fang_all_synd_sum[fang]=sum(fang_one_synd_count[fang][s] for s in fang_one_synd_count[fang])
+            fang_all_patn_sum[fang]=sum(fang_one_patn_count[fang][s] for s in fang_one_patn_count[fang])
 
         #TF(s, f) = (证候 s 在方剂 f 中出现的次数) / (方剂 f 中所有证候的总数)
         tf=defaultdict(lambda:defaultdict(Decimal))
-        for fang in fang_one_synd_count:
-            for synd in fang_one_synd_count[fang]:
+        for fang in fang_one_patn_count:
+            for patn in fang_one_patn_count[fang]:
                 #避免因二进制浮点数无法精确表示十进制数量而可能出现的问题，使用Decimal,方便相等性测试
-                tf[fang][synd]=Decimal(fang_one_synd_count[fang][synd])/Decimal(fang_all_synd_sum[fang])
+                tf[fang][patn]=Decimal(fang_one_patn_count[fang][patn])/Decimal(fang_all_patn_sum[fang])
 
         #idf的分子=方剂集合 F 中的总方剂数
-        fang_count=len(fang_one_synd_count.keys())
+        fang_count=len(fang_one_patn_count.keys())
 
         #IDF的分母=包含证候 s 的方剂数
-        #synd_fang=defaultdict(list)#若证候被同一方剂包含多次，只算一次,故不用list
-        synd_fang=defaultdict(set)#用set
-        for fang in fang_one_synd_count:
-            for synd in fang_one_synd_count[fang]:
-                synd_fang[synd].add(fang)
+        #patn_fang=defaultdict(list)#若证候被同一方剂包含多次，只算一次,故不用list
+        patn_fang=defaultdict(set)#用set
+        for fang in fang_one_patn_count:
+            for patn in fang_one_patn_count[fang]:
+                patn_fang[patn].add(fang)
         
         idf=defaultdict(lambda:defaultdict(Decimal))
-        for synd in synd_fang:
-            #idf[synd]=Decimal(log(Decimal(len(synd_fang[synd]))/Decimal(fang_count),10))#log()返回float，精度有缺失
-            idf[synd]=(Decimal(fang_count)/Decimal(len(synd_fang[synd]))).log10()#保持精度不缺失
+        for patn in patn_fang:
+            #idf[patn]=Decimal(log(Decimal(len(patn_fang[patn]))/Decimal(fang_count),10))#log()返回float，精度有缺失
+            idf[patn]=(Decimal(fang_count)/Decimal(len(patn_fang[patn]))).log10()#保持精度不缺失
         
         correlations=defaultdict(lambda:defaultdict(Decimal))
-        for fang in fang_one_synd_count:
-            for synd in fang_one_synd_count[fang]:
+        for fang in fang_one_patn_count:
+            for patn in fang_one_patn_count[fang]:
                 #Decimal + 四舍五入 保留精度，方便以后相等性测试
-                correlations[fang][synd]=(tf[fang][synd]*idf[synd]).quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
+                correlations[fang][patn]=(tf[fang][patn]*idf[patn]).quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
             
         #更新到原始数据
-        for entry in self.clause_fang_synds:
-            for fang_synd in entry.fang_synds:
-                fang=fang_synd.fang
-                for synd in fang_synd.syndromes:
-                    norm_synd=self.normalize_term(synd,self.norm)
-                    fang_synd.syndromes[synd]=correlations[fang][norm_synd]
+        for entry in self.clause_fang_patns:
+            for fang_patn in entry.fang_patns:
+                fang=fang_patn.fang
+                for patn in fang_patn.patterns:
+                    norm_patn=self.normalize_term(patn,self.norm)
+                    fang_patn.patterns[patn]=correlations[fang][norm_patn]
 
         #return correlations
 
     #转成字典，#key的格式="条文编号-方名-防同名方剂后缀（因为同一条文可能多次使用同一方剂，故方名后加数字后缀）
-    # def _convert_data(self,clause_fang_synds:list[ClauseFangSynd])->dict[str,dict[str,Decimal]]:
-    #     clause_fang_synd_dict=defaultdict(lambda:defaultdict(Decimal))
-    #     for entry in clause_fang_synds:
-    #         for index, fang_synd in enumerate(entry.fang_synds):
-    #             new_key=f"{entry.clause_id}-{fang_synd.fang}-{index}"
-    #             clause_fang_synd_dict[new_key]={s:Decimal(0.0) for s in fang_synd.syndromes}
-    #     return clause_fang_synd_dict
+    # def _convert_data(self,clause_fang_patns:list[ClauseFangPatn])->dict[str,dict[str,Decimal]]:
+    #     clause_fang_patn_dict=defaultdict(lambda:defaultdict(Decimal))
+    #     for entry in clause_fang_patns:
+    #         for index, fang_patn in enumerate(entry.fang_patns):
+    #             new_key=f"{entry.clause_id}-{fang_patn.fang}-{index}"
+    #             clause_fang_patn_dict[new_key]={s:Decimal(0.0) for s in fang_patn.patterns}
+    #     return clause_fang_patn_dict
     def build_correlation_tf_idf_2(self):
         """
         算法思路：证候=词语,方剂=文档，某个条文里的方剂（后简称条文方剂）算一个文档，即使该方剂名重复出现，
@@ -273,47 +273,47 @@ class Diagnosis:
         #转成字典，#key的格式="条文编号-方名-防同名方剂后缀（因为同一条文可能多次使用同一方剂，故方名后加数字后缀）
         #TF的分子=证候 s 在方剂 f 中出现的次数=永远为1
         #TF的分母=条文方剂 c_f 中所有证候的总数
-        clause_fang_synd_dict=defaultdict(lambda:defaultdict(Decimal))
-        for entry in self.clause_fang_synds:
-            for index, fang_synd in enumerate(entry.fang_synds):
-                new_fang_key=f"{entry.clause_id}-{fang_synd.fang}-{index}"
-                clause_fang_synd_dict[new_fang_key]={self.normalize_term(s,self.norm):Decimal() for s in fang_synd.syndromes}
+        clause_fang_patn_dict=defaultdict(lambda:defaultdict(Decimal))
+        for entry in self.clause_fang_patns:
+            for index, fang_patn in enumerate(entry.fang_patns):
+                new_fang_key=f"{entry.clause_id}-{fang_patn.fang}-{index}"
+                clause_fang_patn_dict[new_fang_key]={self.normalize_term(s,self.norm):Decimal() for s in fang_patn.patterns}
 
         #TF(s, f) = (证候 s 在方剂 f 中出现的次数) / (方剂 f 中所有证候的总数)
         tf=defaultdict(lambda:defaultdict(Decimal))
-        for fang in clause_fang_synd_dict:
-            for synd in clause_fang_synd_dict[fang]:
+        for fang in clause_fang_patn_dict:
+            for patn in clause_fang_patn_dict[fang]:
                 #避免因二进制浮点数无法精确表示十进制数量而可能出现的问题，使用Decimal,方便相等性测试
-                tf[fang][synd]=Decimal(1)/Decimal(len(clause_fang_synd_dict[fang].keys()))#一个条方的证候不会重复，故总是1
+                tf[fang][patn]=Decimal(1)/Decimal(len(clause_fang_patn_dict[fang].keys()))#一个条方的证候不会重复，故总是1
         #IDF的分子=方剂集合 F 中的总"条文方剂"数
-        fang_count=len(clause_fang_synd_dict.keys())
+        fang_count=len(clause_fang_patn_dict.keys())
 
         #IDF的分母=包含证候 s 的方剂数
-        #synd_fang=defaultdict(set)#同一方剂多次包含算多次,故不用set
-        synd_fang=defaultdict(list)#因为新方名带claus_id和列表索引，不重复，故set list都可以
-        for fang, synds in clause_fang_synd_dict.items():
-            for synd in synds:
-                synd_fang[self.normalize_term(synd,self.norm)].append(fang)
+        #patn_fang=defaultdict(set)#同一方剂多次包含算多次,故不用set
+        patn_fang=defaultdict(list)#因为新方名带claus_id和列表索引，不重复，故set list都可以
+        for fang, patns in clause_fang_patn_dict.items():
+            for patn in patns:
+                patn_fang[self.normalize_term(patn,self.norm)].append(fang)
         
         idf=defaultdict(lambda:defaultdict(Decimal))
-        for synd in synd_fang:
-            #idf[synd]=Decimal(log(Decimal(len(synd_fang[synd]))/Decimal(fang_count),10))#精度有缺失
-            idf[synd]=(Decimal(fang_count)/Decimal(len(synd_fang[synd]))).log10()#精度一直不缺失
+        for patn in patn_fang:
+            #idf[patn]=Decimal(log(Decimal(len(patn_fang[patn]))/Decimal(fang_count),10))#精度有缺失
+            idf[patn]=(Decimal(fang_count)/Decimal(len(patn_fang[patn]))).log10()#精度一直不缺失
 
                 
         #correlations=defaultdict(lambda:defaultdict(Decimal))
-        for fang in clause_fang_synd_dict:
-            for synd in clause_fang_synd_dict[fang]:
+        for fang in clause_fang_patn_dict:
+            for patn in clause_fang_patn_dict[fang]:
                 #Decimal + 四舍五入 保留精度，方便以后相等性测试
-                clause_fang_synd_dict[fang][synd]=(tf[fang][synd]*idf[synd]).quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
+                clause_fang_patn_dict[fang][patn]=(tf[fang][patn]*idf[patn]).quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
         
         #更新到原始数据
-        for entry in self.clause_fang_synds:
-            for index,fang_synd in enumerate(entry.fang_synds):
-                new_fang_key=f"{entry.clause_id}-{fang_synd.fang}-{index}"
-                for synd in fang_synd.syndromes:
-                    norm_synd=self.normalize_term(synd,self.norm)
-                    fang_synd.syndromes[synd]=clause_fang_synd_dict[new_fang_key][norm_synd]
+        for entry in self.clause_fang_patns:
+            for index,fang_patn in enumerate(entry.fang_patns):
+                new_fang_key=f"{entry.clause_id}-{fang_patn.fang}-{index}"
+                for patn in fang_patn.patterns:
+                    norm_patn=self.normalize_term(patn,self.norm)
+                    fang_patn.patterns[patn]=clause_fang_patn_dict[new_fang_key][norm_patn]
 
     def build_correlation_BM25(self):
         """
@@ -340,66 +340,66 @@ class Diagnosis:
         #转成字典，#key的格式="条文编号-方名-防同名方剂后缀（因为同一条文可能多次使用同一方剂，故方名后加数字后缀）
         #TF的分子=证候 s 在方剂 f 中出现的次数=一般为1
         #TF的分母=条文方剂 c_f 中所有证候的总数
-        clause_fang_synd_dict=defaultdict(lambda:defaultdict(Decimal))
-        for entry in self.clause_fang_synds:
-            for index, fang_synd in enumerate(entry.fang_synds):
-                new_fang_key=f"{entry.clause_id}-{fang_synd.fang}-{index}"
-                clause_fang_synd_dict[new_fang_key]={self.normalize_term(s,self.norm):Decimal() for s in fang_synd.syndromes}
+        clause_fang_patn_dict=defaultdict(lambda:defaultdict(Decimal))
+        for entry in self.clause_fang_patns:
+            for index, fang_patn in enumerate(entry.fang_patns):
+                new_fang_key=f"{entry.clause_id}-{fang_patn.fang}-{index}"
+                clause_fang_patn_dict[new_fang_key]={self.normalize_term(s,self.norm):Decimal() for s in fang_patn.patterns}
 
         #TF(s, f) = (证候 s 在方剂 f 中出现的次数) / (方剂 f 中所有证候的总数)
         tf=defaultdict(lambda:defaultdict(Decimal))
-        for fang in clause_fang_synd_dict:
-            for synd in clause_fang_synd_dict[fang]:
+        for fang in clause_fang_patn_dict:
+            for patn in clause_fang_patn_dict[fang]:
                 #避免因二进制浮点数无法精确表示十进制数量而可能出现的问题，使用Decimal,方便相等性测试
-                #tf[fang][synd]=Decimal(1)/Decimal(len(clause_fang_synd_dict[fang].keys()))#一个条方的证候不会重复，故总是1
-                tf[fang][synd]=Decimal(1)#不再/ (方剂 f 中所有证候的总数)
+                #tf[fang][patn]=Decimal(1)/Decimal(len(clause_fang_patn_dict[fang].keys()))#一个条方的证候不会重复，故总是1
+                tf[fang][patn]=Decimal(1)#不再/ (方剂 f 中所有证候的总数)
                 #一个条方的证候不会重复，故目前是1，以后会修改：1. 调整词频饱和度，2.减低文档长度的影响
         
         # IDF的分子=方剂集合 F 中的总"条文方剂"数
-        fang_count=len(clause_fang_synd_dict.keys())
+        fang_count=len(clause_fang_patn_dict.keys())
 
         #IDF的分母=包含证候 s 的方剂数
-        #synd_fang=defaultdict(set)#同一方剂多次包含算多次,故不用set
-        synd_fang=defaultdict(list)#因为新方名带claus_id和列表索引，不重复，故set list都可以
-        for fang, synds in clause_fang_synd_dict.items():
-            for synd in synds:
-                synd_fang[self.normalize_term(synd,self.norm)].append(fang)
+        #patn_fang=defaultdict(set)#同一方剂多次包含算多次,故不用set
+        patn_fang=defaultdict(list)#因为新方名带claus_id和列表索引，不重复，故set list都可以
+        for fang, patn in clause_fang_patn_dict.items():
+            for patn in patn:
+                patn_fang[self.normalize_term(patn,self.norm)].append(fang)
         
         idf=defaultdict(lambda:defaultdict(Decimal))
-        for synd in synd_fang:
-            #idf[synd]=Decimal(log(Decimal(len(synd_fang[synd]))/Decimal(fang_count),10))#精度有缺失
-            idf[synd]=(Decimal(fang_count)/Decimal(len(synd_fang[synd]))).log10()#精度一直不缺失
+        for patn in patn_fang:
+            #idf[patn]=Decimal(log(Decimal(len(patn_fang[patn]))/Decimal(fang_count),10))#精度有缺失
+            idf[patn]=(Decimal(fang_count)/Decimal(len(patn_fang[patn]))).log10()#精度一直不缺失
 
         #correlations=defaultdict(lambda:defaultdict(Decimal))
-        for fang in clause_fang_synd_dict:
-            for synd in clause_fang_synd_dict[fang]:
+        for fang in clause_fang_patn_dict:
+            for patn in clause_fang_patn_dict[fang]:
                 #Decimal + 四舍五入 保留精度，方便以后相等性测试
-                clause_fang_synd_dict[fang][synd]=(tf[fang][synd]*idf[synd]).quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
+                clause_fang_patn_dict[fang][patn]=(tf[fang][patn]*idf[patn]).quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
         
         #更新到原始数据
-        for entry in self.clause_fang_synds:
-            for index,fang_synd in enumerate(entry.fang_synds):
-                new_fang_key=f"{entry.clause_id}-{fang_synd.fang}-{index}"
-                for synd in fang_synd.syndromes:
-                    norm_synd=self.normalize_term(synd,self.norm)
-                    fang_synd.syndromes[synd]=clause_fang_synd_dict[new_fang_key][norm_synd]
+        for entry in self.clause_fang_patns:
+            for index,fang_patn in enumerate(entry.fang_patns):
+                new_fang_key=f"{entry.clause_id}-{fang_patn.fang}-{index}"
+                for patn in fang_patn.patterns:
+                    norm_patn=self.normalize_term(patn,self.norm)
+                    fang_patn.patterns[patn]=clause_fang_patn_dict[new_fang_key][norm_patn]
 
     #平均发相关性统计
     def build_correlation_avg(self):
     #    from collections import defaultdict
-        #co_occurs=self.fang_synd_count(self.clause_fang_synds,self.norm)
+        #co_occurs=self.fang_patn_count(self.clause_fang_patns,self.norm)
         co_occurs=defaultdict(lambda:defaultdict(int))
-        for entry in self.clause_fang_synds:
-            for fang_synd in entry.fang_synds:
-                fang=fang_synd.fang
-                syndromes=fang_synd.syndromes
-                for synd in syndromes:
-                    co_occurs[fang][self.normalize_term(synd,self.norm)]+=1
+        for entry in self.clause_fang_patns:
+            for fang_patn in entry.fang_patns:
+                fang=fang_patn.fang
+                patterns=fang_patn.patterns
+                for patn in patterns:
+                    co_occurs[fang][self.normalize_term(patn,self.norm)]+=1
 
         #为了归一化，因为，如果某个方剂-证候共现次数多，他的相关性数值就越大，代表此证候的权重越大，这不合理,举例：
         # [
-        #   {"fang":"桂枝汤",fang_synd{"发热"}} #重复10次
-        #   {"fang":"麻黄汤",fang_synd{"发热"，"头痛","身痛"} 仅此1次
+        #   {"fang":"桂枝汤",fang_patn{"发热"}} #重复10次
+        #   {"fang":"麻黄汤",fang_patn{"发热"，"头痛","身痛"} 仅此1次
         #]
         #则相关性数值统计为：
         # {{"桂枝汤":{"发热":10}}，{"麻黄汤":{"发热":1,"头痛":1,"身痛":1}}，若证候是{"发热","头痛"，"身痛"}，
@@ -411,58 +411,58 @@ class Diagnosis:
         # 有没有比平均更合理之法？如TF-IDF？
         
         fang_count=defaultdict(int)
-        for entry in self.clause_fang_synds:
-            for fang_synd in entry.fang_synds:
-                fang=fang_synd.fang
+        for entry in self.clause_fang_patns:
+            for fang_patn in entry.fang_patns:
+                fang=fang_patn.fang
                 fang_count[fang]+=1
  
         for fang in co_occurs:
-            #fang_count[fang]=sum(co_occurs[fang][synd] for synd in co_occurs)
-            for synd in co_occurs[fang]: 
-                #co_occurs[fang][synd] /=fang_count[fang]#不利于相等性测试
-                co_occurs[fang][synd] =(Decimal(co_occurs[fang][synd])/Decimal(fang_count[fang]))\
+            #fang_count[fang]=sum(co_occurs[fang][patn] for patn in co_occurs)
+            for patn in co_occurs[fang]: 
+                #co_occurs[fang][patn] /=fang_count[fang]#不利于相等性测试
+                co_occurs[fang][patn] =(Decimal(co_occurs[fang][patn])/Decimal(fang_count[fang]))\
                     .quantize(Decimal('0.00'),rounding=ROUND_HALF_UP)
 
         #更新到原始数据
-        for entry in self.clause_fang_synds:
-            for fang_synd in entry.fang_synds:
-                fang=fang_synd.fang
-                for synd in fang_synd.syndromes:
-                    norm_synd=self.normalize_term(synd,self.norm)
-                    fang_synd.syndromes[synd]=co_occurs[fang][norm_synd]
+        for entry in self.clause_fang_patns:
+            for fang_patn in entry.fang_patns:
+                fang=fang_patn.fang
+                for patn in fang_patn.patterns:
+                    norm_patn=self.normalize_term(patn,self.norm)
+                    fang_patn.patterns[patn]=co_occurs[fang][norm_patn]
 
 
      #遍历全部条文，逐个计算，然后排序，全程不会丢失 条文-方剂 对应关系
-    def recommend_fang(self,query_synds:set[str])->list[Recommend]:
+    def recommend_fang(self,query_patns:set[str])->list[Recommend]:
         recommends:list[Recommend]=[]
         if not hasattr(self,"clauses"):
             self.clauses=self.load_SHL_clauses()
         
-        query={self.normalize_term(s,self.norm):1 for s in query_synds}
-        for entry in self.clause_fang_synds:
+        query={self.normalize_term(s,self.norm):1 for s in query_patns}
+        for entry in self.clause_fang_patns:
             id=entry.clause_id
             clause=self.clauses[id]
             score=Decimal(0)
-            for fang_synd in entry.fang_synds:
+            for fang_patn in entry.fang_patns:
                 clause_fang={self.normalize_term(s,self.norm):\
-                                fang_synd.syndromes[s] for s in fang_synd.syndromes}
+                                fang_patn.patterns[s] for s in fang_patn.patterns}
                 dot=sum(query.get(s,0)*clause_fang.get(s,0) for s in query)
                 query_norm=Decimal(sum(val**2 for val in query.values())).sqrt()
                 clause_fang_norm=Decimal(sum(v**2 for v in clause_fang.values())).sqrt()
                 score=dot/query_norm/clause_fang_norm
-                recommends.append(Recommend(clause_id=id, clause=clause,fang_synd=fang_synd,match_score=score))#一条文多方剂列表会被拆成多条单方剂
+                recommends.append(Recommend(clause_id=id, clause=clause,fang_patn=fang_patn,match_score=score))#一条文多方剂列表会被拆成多条单方剂
             
-            # for synd in fang_synd.syndromes:
-            #         norm_synd=self.normalize_term(synd,self.norm)
-            #         if norm_synd in norm_query_synds:
-            #             score +=fang_synd.syndromes[synd]
+            # for patn in fang_patn.patterns:
+            #         norm_patn=self.normalize_term(patn,self.norm)
+            #         if norm_patn in norm_query_patns:
+            #             score +=fang_patn.patterns[patn]
         sorted_recommends=sorted(recommends,key=lambda x: x.match_score,reverse=True)
         return sorted_recommends
 
 # if __name__=="__main__":
 #     import argparse
 #     parse=argparse.ArgumentParser(description='推荐方剂，并给出推荐依据')
-#     parse.add_argument('-synds','--syndromes')#-l/--lines可选参数（前缀-），行数（默认 10，须为整数）
+#     parse.add_argument('-patns','--patterns')#-l/--lines可选参数（前缀-），行数（默认 10，须为整数）
 #     args=parse.parse_args() #按照add_argument()给的参数结构，
 #                             #解析命令行参数（=sys.argv=lanch.json文件的args项的值）
 #     print(args)
