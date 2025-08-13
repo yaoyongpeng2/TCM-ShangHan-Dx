@@ -82,53 +82,67 @@ class TestDiagnosis(unittest.TestCase):
             "44-0-桂枝汤":{"太阳病":'0.000',"先发汗不解":'0.368'},
             "45-0-桂枝汤":{"太阳病":'0.000',"先发汗不解":'0.368',"脉浮":'0.845'}
         }
-
-        
-    def _test_recommend_fang(self):
+        self.fang_file_ids=self.prepare_ids()
+    def prepare_ids(self):
+        ids=[12,13,14,15,15,16,17,18,19,
+            20,21,22,23,23,23,24,25,25,26,27,27,28,29,29,29,29,29,
+            31,32,33,34,35,36,37,37,38,38,39,
+            40,41,41,42,43,44,45,46,46,47,48,48,48,49,49,
+            50,51,52,53,54,55,56,56,56,57,
+            61,62,63,63,64,65,66,67,68,69,
+            70,70,71,71,72,73,73,74
+            #更多待加
+        ]
+   
+        # id_range=(12,75)
+        # _no_fang={30,58,59,60}#暂缺，或没有治方，只有医理
+        # _2_seg={15,25,27,37,38,41,46,49,63,70,71,73}#分成2段也即id出现2次
+        # _3_seg={23,48,56}#分成3段也即id出现3次
+        # _4_seg={}#分成4段也即id出现4次
+        # _5_seg={29}#分成5段也即id出现5次
+        # ids=set(range(*id_range,1))
+        # ids.difference_update(_no_fang)
+        # ids=list(ids)
+        # #ids.append(_2_seg)
+        # ids.extend(_2_seg)
+        # ids.extend(list(_3_seg)*2)
+        # ids.extend(list(_4_seg)*3)
+        # ids.extend(list(_5_seg)*4)
+        # ids=sorted(ids)
+        return ids
+    def test_load_from_file(self): 
+        self.prepare_data()
+        diagnosis=Diagnosis()
+        ids=[c.clause_id for c in diagnosis.clause_fang_patns]
+        ids=sorted(ids)
+        #assert self.fang_file_ids==ids[0:len(self.fang_file_ids)]
+        for i in range(len(self.fang_file_ids)):
+            assert self.fang_file_ids[i]==ids[i]
+    def test_recommend_fang(self):
         self.prepare_data()
         diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.TF_IDF_1)
         #diagnosis.__init__(self.norm,self.clause_fang_patns,Correl.AVG)
         recomends=diagnosis.recommend_fang({'发热','恶寒','汗出'})
-        # recomend_ids=[r.clause_id for r in recomends]
-        #assert recomend_ids==[27,14,13,35,42,44,45]
-        #[13,42,44,45]=桂枝汤，证候总数太多→TF分母太大→TF太低→导致分数下降，改进TF计算方式？
-        # #27的发热(0.025）+恶寒（0.06)=0.085
-        # #14的汗出"(0.075)=0.075
-        # #13的发热(0.01）+恶寒（0.023)+汗出(0.023)=0.056
-        # assert recomends[0].clause_id==27
-        # assert recomends[0].fang_patn.fang=="桂枝二越婢一汤"
-        # assert recomends[0].clause.startswith("27.")
-        recomend_ids=[r.clause_id for r in recomends]
-        assert recomend_ids==[13, 27, 14, 35, 42, 44, 45]
-        #改用余弦相似度算法，后合理了一点，13-桂枝汤全匹配{'发热','恶寒','汗出'}
-        #27-桂枝二越婢一汤匹配{'发热','恶寒'}
-        #14-桂枝葛根汤匹配{'汗出'}
-        #35-麻黄汤匹配{'发热'}，但因其证候数目多→模大→cos的分母大→cos小于#14
-        #其余都是零匹配
-        # assert recomends[0].clause_id==13
-        # assert recomends[0].fang_patn.fang=="桂枝汤"
-        # assert recomends[0].clause.startswith("13.")
+        recomend_ids=[r.clause_fang_patn.clause_id for r in recomends]
+#        assert recomend_ids==[13, 27, 14, 35, 42, 44, 45]
+        assert recomend_ids==[13, 14, 27,35, 42, 44, 45]
+
         
 
         diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.TF_IDF_2)
         #diagnosis.__init__(self.norm,self.clause_fang_patns,Correl.AVG)
         recomends=diagnosis.recommend_fang({'发热','恶寒','汗出'})#14/27/13/35/42/44/45
-        recomend_ids=[r.clause_id for r in recomends]
-        assert recomend_ids==[13,27,14,35,42,44,45]
-        # #27虽只有"汗出"一个脉证对号，但它权重(0.08)高
-        assert recomends[0].clause_id==13
-        assert recomends[0].fang_patn.fang=="桂枝汤"
-        assert recomends[0].clause_text.startswith("13.")
+        recomend_ids=[r.clause_fang_patn.clause_id for r in recomends]
+        assert recomend_ids==[13,14,27,35,42,44,45]
+        assert recomends[0].clause_fang_patn.fang_patn.fang=="桂枝汤"
+        assert recomends[0].clause_text.startswith("13.")#条文正确加载了
 
         diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.BM25)
-        #diagnosis.__init__(self.norm,self.clause_fang_patns,Correl.AVG)
         recomends=diagnosis.recommend_fang({'发热','恶寒','汗出'})#14/27/13/35/42/44/45
-        recomend_ids=[r.clause_id for r in recomends]
-        assert recomend_ids==[13,27,14,35,42,44,45]
-        # #27虽只有"汗出"一个脉证对号，但它权重(0.08)高
-        assert recomends[0].clause_id==13
-        assert recomends[0].fang_patn.fang=="桂枝汤"
-        assert recomends[0].clause_text.startswith("13.")
+        recomend_ids=[r.clause_fang_patn.clause_id for r in recomends]
+        assert recomend_ids==[13,14,27,35,42,44,45]
+        assert recomends[0].clause_fang_patn.fang_patn.fang=="桂枝汤"
+        assert recomends[0].clause_text.startswith("13.")#条文正确加载了
 
 
     def test_build_correlation_avg(self):
