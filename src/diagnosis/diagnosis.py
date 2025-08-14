@@ -61,8 +61,8 @@ class Recommend(BaseModel):
     #     self.match_score=score
 
 class Correl(Enum):
-    AVG=auto()
-    TF_IDF_1=auto()
+#    AVG=auto()
+#    TF_IDF_1=auto()
 #    TF_IDF_2=auto()
     BM25=auto()
 class Diagnosis:
@@ -75,7 +75,7 @@ class Diagnosis:
     #         cls._instance._initialized=False
     #     return cls._instance
  
-    def __init__(self,norm:dict[str,str]=None,clause_fang_patns:list[ClauseFangPatn]=None, correl:Correl=Correl.AVG):
+    def __init__(self,norm:dict[str,str]=None,clause_fang_patns:list[ClauseFangPatn]=None, correl:Correl=Correl.BM25):
         # if self._initialized==True:
         #     return
         if hasattr(self,"norm") and self.norm==norm\
@@ -90,14 +90,15 @@ class Diagnosis:
         if not self.clause_fang_patns:
             self.clause_fang_patns=self.load_clause_fang_patn_from_file()
         #self.patn_set=self.consolidate_term()
-        if correl==Correl.AVG:
-            self.build_correlation_avg()
-        elif correl==Correl.TF_IDF_1:
-            self.build_correlation_tf_idf_1()
+        #只剩下BM25算法了。
+        # if correl==Correl.AVG:
+        #     self.build_correlation_avg()
+        # elif correl==Correl.TF_IDF_1:
+        #     self.build_correlation_tf_idf_1()
         # elif correl==Correl.TF_IDF_2:
         #     self.build_correlation_tf_idf_2()
-        else:
-            self.build_correlation_BM25()
+        #else:
+        self.build_correlation_BM25()
         self._initialized=True
 
     def load_clause_fang_patn_from_file(self)->list[ClauseFangPatn]:
@@ -202,62 +203,114 @@ class Diagnosis:
         if includeFang:
             term_dict.add(fang_patn.fang for entry in self.clause_fang_patns for fang_patn in entry.fang_patns )
         return term_dict
+    
+    #被废弃原因见"""...""":经常出现的方剂用法可靠性低于偶尔出现的用法，不合理
+    #平均法相关性统计
+    # def build_correlation_avg(self):
+    #     """
+    #     算法思路：
+    #             TC(f,p)=所有f方剂中证p出现的次数，
+    #         FC(f)=f方剂出现的次数，TC(f,p)/TC(f)即共现频率即权重
+    #         通常同一条文某方剂中证不重复，要么出现1次要么不出现（=0次），
+    #         所以TC(f,p)<TC(f)，所以TC(f,p)/TC(f)<1
+    #             若某方剂只出现一次，而其中含有某个证只出现一次，
+    #         则TC(f,p)=TC(f)=1，TC(f,p)/TC(f)=1，
+    #         比其余多次出现的权重都高--即经常出现的方剂用法可靠性低于偶尔出现的用法，不合理吧？
+    #     """
 
-    def build_correlation_tf_idf_1(self):
-        """
-        算法思路：证候=词语,方剂=文档，而且同名的方剂的所有证候都算在一个文档里。
-        TF(Term Frequency)-词频
-        TF(s, f) = (证候 s 在方剂 f 中出现的次数) / (方剂 f 中所有证候的总数)
-        IDF (Inverse Document Frequency) - 逆文档频率
-        IDF(s, F) = log(方剂集合 F 中的总方剂数 / 包含证候 s 的方剂数))
-        """
+    #     fang_patn_count=defaultdict(lambda:defaultdict(int))#每种方（不同条文同名方算一种）的每种证候（同名方的同名证候算一种）的计数
+    #     for entry in self.clause_fang_patns:
+    #         for patn in entry.fang_patn.patterns:
+    #             fang_patn_count[entry.fang_patn.fang][self.normalize_term(patn,self.norm)]+=1
+
+    #     #为了归一化，因为，如果某个方剂-证候共现次数多，他的相关性数值就越大，代表此证候的权重越大，这不合理,举例：
+    #     # [
+    #     #   {"fang":"桂枝汤",fang_patn{"发热"}} #重复10次
+    #     #   {"fang":"麻黄汤",fang_patn{"发热"，"头痛","身痛"} 仅此1次
+    #     #]
+    #     #则相关性数值统计为：
+    #     # {{"桂枝汤":{"发热":10}}，{"麻黄汤":{"发热":1,"头痛":1,"身痛":1}}，若证候是{"发热","头痛"，"身痛"}，
+    #     # 则相关性求和：桂枝汤=发热(10)+头痛(0)+身痛(0)=10，麻黄汤=发热(1)+头痛(1)+身痛(1)=3，
+    #     # 符合麻黄汤证候更多，却不推荐，这明显不合理，原因就是桂枝汤的证候重复次数太高，导致相关性虚高。所以要除以总数以归一化：
+    #     # 归一化后是：{{"桂枝汤":{"发热":10/10=1}}，{"麻黄汤":{"发热":1,"头痛":1,"身痛":1}}再匹配证候{"发热","头痛"，"身痛"}
+    #     # 则桂枝汤=发热(1)+头痛(0)+身痛(0)=1，麻黄汤=发热(1)+头痛(1)+身痛(1)=3，自然推荐麻黄汤
+    #     # 还有不合理之处：特异性证候被意外平均了？
+    #     # 有没有比平均更合理之法？如TF-IDF？
+        
+    #     fang_count=defaultdict(int)
+    #     for entry in self.clause_fang_patns:
+    #             fang_count[entry.fang_patn.fang]+=1#不同条文里的重名方剂算一个
+ 
+    #     for fang in fang_patn_count:
+    #         #fang_count[fang]=sum(co_occurs[fang][patn] for patn in co_occurs)
+    #         for patn in fang_patn_count[fang]: 
+    #             #co_occurs[fang][patn] /=fang_count[fang]#不利于相等性测试
+    #             fang_patn_count[fang][patn] =(Decimal(fang_patn_count[fang][patn])/Decimal(fang_count[fang]))\
+    #                 .quantize(Decimal('0.00'),rounding=ROUND_HALF_UP)
+
+    #     #更新到原始数据
+    #     for entry in self.clause_fang_patns:
+    #         for patn in entry.fang_patn.patterns:
+    #             norm_patn=self.normalize_term(patn,self.norm)
+    #             #原始数据证候处理时归一化，但保留原始值，用原patn的权重，被赋予归一化patn的权重
+    #             entry.fang_patn.patterns[patn]=fang_patn_count[entry.fang_patn.fang][norm_patn]
+
+# #缺陷：适应症越多的方剂，其TF的分母越大，导致权重降低，不合理
+#     def build_correlation_tf_idf_1(self):
+#         """
+#         算法思路：证候=词语,方剂=文档，而且同名的方剂的所有证候都算在一个文档里。
+#         TF(Term Frequency)-词频
+#         TF(s, f) = (证候 s 在方剂 f 中出现的次数) / (方剂 f 中所有证候的总数)
+#         IDF (Inverse Document Frequency) - 逆文档频率
+#         IDF(s, F) = log(方剂集合 F 中的总方剂数 / 包含证候 s 的方剂数))
+#         """
          
-        #TF的分子=证候 s 在方剂 f 中出现的次数        
-        fang_patn_count=defaultdict(lambda:defaultdict(int))
-        for entry in self.clause_fang_patns:
-            for patn in entry.fang_patn.patterns:
-                fang_patn_count[entry.fang_patn.fang][self.normalize_term(patn,self.norm)]+=1
+#         #TF的分子=证候 s 在方剂 f 中出现的次数        
+#         fang_patn_count=defaultdict(lambda:defaultdict(int))
+#         for entry in self.clause_fang_patns:
+#             for patn in entry.fang_patn.patterns:
+#                 fang_patn_count[entry.fang_patn.fang][self.normalize_term(patn,self.norm)]+=1
        
-        #TF的分母=方剂 f 中所有证候的总数
-        fang_all_patn_sum=defaultdict(int)
-        for fang in fang_patn_count:
-            #fang_all_patn_count[fang]=len(co_occurs[fang].keys())#按证候种类计数，错
-            #应该按证候词语出现次数总数计数，否则若某个词语出现次数很多次，而按种类只计数1次，则导致此词语TF>1，不符合归一化的初衷。
-            fang_all_patn_sum[fang]=sum(fang_patn_count[fang][s] for s in fang_patn_count[fang])
+#         #TF的分母=方剂 f 中所有证候的总数
+#         fang_all_patn_sum=defaultdict(int)
+#         for fang in fang_patn_count:
+#             #fang_all_patn_count[fang]=len(co_occurs[fang].keys())#按证候种类计数，错
+#             #应该按证候词语出现次数总数计数，否则若某个词语出现次数很多次，而按种类只计数1次，则导致此词语TF>1，不符合归一化的初衷。
+#             fang_all_patn_sum[fang]=sum(fang_patn_count[fang][s] for s in fang_patn_count[fang])
 
-        #TF(s, f) = (证候 s 在方剂 f 中出现的次数) / (方剂 f 中所有证候的总数)
-        tf=defaultdict(lambda:defaultdict(Decimal))
-        for fang in fang_patn_count:
-            for patn in fang_patn_count[fang]:
-                #避免因二进制浮点数无法精确表示十进制数量而可能出现的问题，使用Decimal,方便相等性测试
-                tf[fang][patn]=Decimal(fang_patn_count[fang][patn])/Decimal(fang_all_patn_sum[fang])
+#         #TF(s, f) = (证候 s 在方剂 f 中出现的次数) / (方剂 f 中所有证候的总数)
+#         tf=defaultdict(lambda:defaultdict(Decimal))
+#         for fang in fang_patn_count:
+#             for patn in fang_patn_count[fang]:
+#                 #避免因二进制浮点数无法精确表示十进制数量而可能出现的问题，使用Decimal,方便相等性测试
+#                 tf[fang][patn]=Decimal(fang_patn_count[fang][patn])/Decimal(fang_all_patn_sum[fang])
 
-        #idf的分子=方剂集合 F 中的总方剂数
-        fang_count=len(fang_patn_count.keys())
+#         #idf的分子=方剂集合 F 中的总方剂数
+#         fang_count=len(fang_patn_count.keys())
 
-        #IDF的分母=包含证候 s 的方剂数
-        #patn_fang=defaultdict(list)#若证候被同一方剂包含多次，只算一次,故不用list
-        patn_fang=defaultdict(set)#用set
-        for fang in fang_patn_count:
-            for patn in fang_patn_count[fang]:
-                patn_fang[patn].add(fang)
+#         #IDF的分母=包含证候 s 的方剂数
+#         #patn_fang=defaultdict(list)#若证候被同一方剂包含多次，只算一次,故不用list
+#         patn_fang=defaultdict(set)#用set
+#         for fang in fang_patn_count:
+#             for patn in fang_patn_count[fang]:
+#                 patn_fang[patn].add(fang)
         
-        idf=defaultdict(lambda:defaultdict(Decimal))
-        for patn in patn_fang:
-            #idf[patn]=Decimal(log(Decimal(len(patn_fang[patn]))/Decimal(fang_count),10))#log()返回float，精度有缺失
-            idf[patn]=(Decimal(fang_count)/Decimal(len(patn_fang[patn]))).log10()#保持精度不缺失
+#         idf=defaultdict(lambda:defaultdict(Decimal))
+#         for patn in patn_fang:
+#             #idf[patn]=Decimal(log(Decimal(len(patn_fang[patn]))/Decimal(fang_count),10))#log()返回float，精度有缺失
+#             idf[patn]=(Decimal(fang_count)/Decimal(len(patn_fang[patn]))).log10()#保持精度不缺失
         
-        tf_idf=defaultdict(lambda:defaultdict(Decimal))
-        for fang in fang_patn_count:
-            for patn in fang_patn_count[fang]:
-                #Decimal + 四舍五入 保留精度，方便以后相等性测试
-                tf_idf[fang][patn]=(tf[fang][patn]*idf[patn]).quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
+#         tf_idf=defaultdict(lambda:defaultdict(Decimal))
+#         for fang in fang_patn_count:
+#             for patn in fang_patn_count[fang]:
+#                 #Decimal + 四舍五入 保留精度，方便以后相等性测试
+#                 tf_idf[fang][patn]=(tf[fang][patn]*idf[patn]).quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
             
-        #更新到原始数据
-        for entry in self.clause_fang_patns:
-            for patn in entry.fang_patn.patterns:
-                norm_patn=self.normalize_term(patn,self.norm)
-                entry.fang_patn.patterns[patn]=tf_idf[entry.fang_patn.fang][norm_patn]
+#         #更新到原始数据
+#         for entry in self.clause_fang_patns:
+#             for patn in entry.fang_patn.patterns:
+#                 norm_patn=self.normalize_term(patn,self.norm)
+#                 entry.fang_patn.patterns[patn]=tf_idf[entry.fang_patn.fang][norm_patn]
 
 #以下函数被注释的原因：比起BM25唯一区别就是 此算法多除了一次方剂证候数，而这在余弦相似度算法里是多余的，无任何作用。
     # def build_correlation_tf_idf_2(self):
@@ -412,17 +465,19 @@ class Diagnosis:
                 clause_fang_patn_dict[new_fang_key]={self.normalize_term(p,self.norm):Decimal() for p in entry.fang_patn.patterns}
 
         #TF(s, f) = (证候 s 在方剂 f 中出现的次数) / (方剂 f 中所有证候的总数)
-        tf=defaultdict(lambda:defaultdict(Decimal))
-        for fang in clause_fang_patn_dict:
-            for patn in clause_fang_patn_dict[fang]:
-                #避免因二进制浮点数无法精确表示十进制数量而可能出现的问题，使用Decimal,方便相等性测试
-                #tf[fang][patn]=Decimal(1)/Decimal(len(clause_fang_patn_dict[fang].keys()))#一个条方的证候不会重复，故总是1
-                tf[fang][patn]=Decimal(1)#不再/ (方剂 f 中所有证候的总数)，理由如下：
+        # tf=defaultdict(lambda:defaultdict(Decimal))
+        # for fang in clause_fang_patn_dict:
+        #     for patn in clause_fang_patn_dict[fang]:
+        #         #避免因二进制浮点数无法精确表示十进制数量而可能出现的问题，使用Decimal,方便相等性测试
+        #         #tf[fang][patn]=Decimal(1)/Decimal(len(clause_fang_patn_dict[fang].keys()))#一个条方的证候不会重复，故总是1
+        #         tf[fang][patn]=Decimal(1)#不再/ (方剂 f 中所有证候的总数)，理由如下：
                 #一向量*常数→不会改变向量的方向（只是在此方向的伸缩）→与查询向量的余弦夹角也不会改变→余弦相似度不变
                 #一个条方的证候不会重复，故目前是1，以后会修改：1. 调整词频饱和度，2.减低文档长度的影响
+                #没有必要，因为余弦相似度公式以方剂证候权重向量和查询权重向量的"模"为分母，
+                # 已经包含长度的影响，且完美归一化，所以简化如下：TF(所有方剂所有patn)=1。
         
         # IDF的分子=方剂集合 F 中的总"条文方剂"数
-        fang_count=len(clause_fang_patn_dict.keys())
+        clause_fang_count=len(clause_fang_patn_dict.keys())
 
         #IDF的分母=包含证候 s 的方剂数
         #patn_fang=defaultdict(set)#同一方剂多次包含算多次,故不用set
@@ -436,60 +491,21 @@ class Diagnosis:
         idf=defaultdict(lambda:defaultdict(Decimal))
         for patn in patn_fang:
             #idf[patn]=Decimal(log(Decimal(len(patn_fang[patn]))/Decimal(fang_count),10))#精度有缺失
-            idf[patn]=(Decimal(fang_count)/Decimal(len(patn_fang[patn]))).log10()#全程不失精度
+            idf[patn]=(Decimal(clause_fang_count)/Decimal(len(patn_fang[patn]))).log10()#全程不失精度
 
-        #correlations=defaultdict(lambda:defaultdict(Decimal))
-        for fang in clause_fang_patn_dict:
-            for patn in clause_fang_patn_dict[fang]:
-                #Decimal + 四舍五入 保留精度，方便以后相等性测试
-                clause_fang_patn_dict[fang][patn]=(tf[fang][patn]*idf[patn]).quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
+        self.patn_weight=idf
+        #证候特异性全局统一，故不必再按方分类，方剂的影响力体现在余弦相似度的权重向量的"模"上
+        # for fang in clause_fang_patn_dict:
+        #     for patn in clause_fang_patn_dict[fang]:
+        #         #Decimal + 四舍五入 保留精度，方便以后相等性测试
+        #         clause_fang_patn_dict[fang][patn]=(tf[fang][patn]*idf[patn]).quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
         
-        #更新到原始数据
-        for entry in self.clause_fang_patns:
-            new_fang_key=f"{entry.clause_id}-{entry.clause_seg_id}-{entry.fang_patn.fang}"
-            for patn in entry.fang_patn.patterns:
-                norm_patn=self.normalize_term(patn,self.norm)
-                entry.fang_patn.patterns[patn]=clause_fang_patn_dict[new_fang_key][norm_patn]
-
-    #平均发相关性统计
-    def build_correlation_avg(self):
-
-        fang_patn_count=defaultdict(lambda:defaultdict(int))#每种方（不同条文同名方算一种）的每种证候（同名方的同名证候算一种）的计数
-        for entry in self.clause_fang_patns:
-            for patn in entry.fang_patn.patterns:
-                fang_patn_count[entry.fang_patn.fang][self.normalize_term(patn,self.norm)]+=1
-
-        #为了归一化，因为，如果某个方剂-证候共现次数多，他的相关性数值就越大，代表此证候的权重越大，这不合理,举例：
-        # [
-        #   {"fang":"桂枝汤",fang_patn{"发热"}} #重复10次
-        #   {"fang":"麻黄汤",fang_patn{"发热"，"头痛","身痛"} 仅此1次
-        #]
-        #则相关性数值统计为：
-        # {{"桂枝汤":{"发热":10}}，{"麻黄汤":{"发热":1,"头痛":1,"身痛":1}}，若证候是{"发热","头痛"，"身痛"}，
-        # 则相关性求和：桂枝汤=发热(10)+头痛(0)+身痛(0)=10，麻黄汤=发热(1)+头痛(1)+身痛(1)=3，
-        # 符合麻黄汤证候更多，却不推荐，这明显不合理，原因就是桂枝汤的证候重复次数太高，导致相关性虚高。所以要除以总数以归一化：
-        # 归一化后是：{{"桂枝汤":{"发热":10/10=1}}，{"麻黄汤":{"发热":1,"头痛":1,"身痛":1}}再匹配证候{"发热","头痛"，"身痛"}
-        # 则桂枝汤=发热(1)+头痛(0)+身痛(0)=1，麻黄汤=发热(1)+头痛(1)+身痛(1)=3，自然推荐麻黄汤
-        # 还有不合理之处：特异性证候被意外平均了？
-        # 有没有比平均更合理之法？如TF-IDF？
-        
-        fang_count=defaultdict(int)
-        for entry in self.clause_fang_patns:
-                fang_count[entry.fang_patn.fang]+=1#不同条文里的重名方剂算一个
- 
-        for fang in fang_patn_count:
-            #fang_count[fang]=sum(co_occurs[fang][patn] for patn in co_occurs)
-            for patn in fang_patn_count[fang]: 
-                #co_occurs[fang][patn] /=fang_count[fang]#不利于相等性测试
-                fang_patn_count[fang][patn] =(Decimal(fang_patn_count[fang][patn])/Decimal(fang_count[fang]))\
-                    .quantize(Decimal('0.00'),rounding=ROUND_HALF_UP)
-
-        #更新到原始数据
-        for entry in self.clause_fang_patns:
-            for patn in entry.fang_patn.patterns:
-                norm_patn=self.normalize_term(patn,self.norm)
-                #原始数据证候处理时归一化，但保留原始值，用原patn的权重，被赋予归一化patn的权重
-                entry.fang_patn.patterns[patn]=fang_patn_count[entry.fang_patn.fang][norm_patn]
+        # #更新到原始数据
+        # for entry in self.clause_fang_patns:
+        #     new_fang_key=f"{entry.clause_id}-{entry.clause_seg_id}-{entry.fang_patn.fang}"
+        #     for patn in entry.fang_patn.patterns:
+        #         norm_patn=self.normalize_term(patn,self.norm)
+        #         entry.fang_patn.patterns[patn]=clause_fang_patn_dict[new_fang_key][norm_patn]
 
 
      #遍历全部条文，逐个计算，然后排序，全程不会丢失 条文-方剂 对应关系
@@ -503,23 +519,20 @@ class Diagnosis:
         for entry in self.clause_fang_patns:
             id=entry.clause_id
             clause_text=self.clauses[id]
-            score=Decimal(0)
-            norm_fang_patns={self.normalize_term(p,self.norm):entry.fang_patn.patterns[p]\
-                              for p in entry.fang_patn.patterns}
-            overlap=norm_query_patn.intersection(norm_fang_patns.keys())
-            #dot=sum(query.get(s,0)*norm_fang_patns.get(s,0) for s in query)
-            #query的默认权重不该是1，而应该是fang_patn的权重，否则：
-            # 即使query与fang_patn的证候完全重叠，相似度也达不到100%，这不合理，故改成如下：
-            dot=sum(norm_fang_patns[p]**2 for p in overlap)
+            norm_fang_patns={self.normalize_term(p,self.norm) for p in entry.fang_patn.patterns}
+             #query的默认权重，应从全局证候特异性里取值，不该是1或0，否则：
+            # 即使query与条文方剂的证候完全重叠，相似度也达不到100%，这不合理
+            #如果全局证候特异性里也没有，是一个"全局皆无证",则取0
+            #分子==查询&方剂证候交集的点积：
+            dot=sum(self.patn_weight.get(p,0)**2 for p in norm_query_patn.intersection(norm_fang_patns))
             if dot==Decimal(0):
                 score=0
             else:#dot>0，因为所有权重非负数，则方剂证候权重中必有一个>0，则fang_norm>0，查询证候权重同理，不会除0
-                fang_norm=Decimal(sum(v**2 for v in norm_fang_patns.values())).sqrt()
-                #不重叠部分，点积时不计入，合理；但"模"计算时必须计入，这样虽降低了相似度，但降得合理：
-                #因为不共有部分就是不相似部分更多了，而且也是数学公式决定的，但有个问题：
-                #方剂证候权重总是有值的，查询证候重叠部分共享方剂证候权重值；
-                # 但若不重叠部分呢？缺省值？缺省=0？理由？
-                query_norm=Decimal(sum(norm_fang_patns.get(p,0)**2 for p in norm_query_patn)).sqrt()
+                fang_norm=Decimal(sum(self.patn_weight.get(p,0)**2 for p in norm_fang_patns)).sqrt()#全局皆无证权重=0
+                #方剂独有证候部分，点积时不计入是合理的；但"模"计算时必须计入，这样虽降低了相似度，但降得有理：
+                #因为不共有部分多就是不相似部分更多，而且也是数学公式决定的
+                query_norm=Decimal(sum(self.patn_weight.get(p,0)**2 for p in norm_query_patn)).sqrt()
+                #查询独有证候也计入了，理由同上。
                 score=dot/query_norm/fang_norm
             recommends.append(Recommend(clause_id=id, clause_text=clause_text,
                                         clause_fang_patn=entry,match_score=score))
