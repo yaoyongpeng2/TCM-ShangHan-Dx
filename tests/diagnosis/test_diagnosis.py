@@ -63,16 +63,19 @@ class TestDiagnosis(unittest.TestCase):
             "桂枝二越婢一汤":{"太阳病":'0.0',"发热":'0.025',"恶寒":'0.06',"热多寒少":'0.120',"脉微弱":'0.120'},
             "麻黄汤":{"太阳病":'0.00',"头痛":'0.067',"发热":'0.014',"身疼":'0.067',"腰痛":'0.067',"骨节疼痛":'0.067',"恶风":'0.014',"无汗":'0.067',"喘":'0.067'}
         }
-        self.expected_tf_idf2={#key的格式="条文编号-方名-防同名方剂后缀"，类似数据库的多列主键
-            "13-0-桂枝汤":{"太阳病":'0.000',"发热":'0.074',"恶寒":'0.109',"汗出":'0.109',"恶风":'0.074'},
-            "14-0-桂枝加葛根汤":{"太阳病":'0.0',"项背强几几":'0.211',"汗出":'0.136',"恶风":'0.092'},
-            "27-0-桂枝二越婢一汤":{"太阳病":'0.0',"发热":'0.074',"恶寒":'0.109',"热多寒少":'0.169',"脉微弱":'0.169'},
-            "35-0-麻黄汤":{"太阳病":'0.00',"头痛":'0.094',"发热":'0.041',"身疼":'0.094',"腰痛":'0.094',"骨节疼痛":'0.094',"恶风":'0.041',"无汗":'0.094',"喘":'0.094'},
-            "42-0-桂枝汤":{"太阳病":'0.00',"先发汗不解":'0.123',"脉浮弱":'0.282'},
-            "44-0-桂枝汤":{"太阳病":'0.00',"先发汗不解":'0.184'},
-            "45-0-桂枝汤":{"太阳病":'0.00',"先发汗不解":'0.123',"脉浮":'0.282'}
-        }
 
+        # self.expected_tf_idf2={#key的格式="条文编号-方名-防同名方剂后缀"，类似数据库的多列主键
+        #     "13-0-桂枝汤":{"太阳病":'0.000',"发热":'0.074',"恶寒":'0.109',"汗出":'0.109',"恶风":'0.074'},
+        #     "14-0-桂枝加葛根汤":{"太阳病":'0.0',"项背强几几":'0.211',"汗出":'0.136',"恶风":'0.092'},
+        #     "27-0-桂枝二越婢一汤":{"太阳病":'0.0',"发热":'0.074',"恶寒":'0.109',"热多寒少":'0.169',"脉微弱":'0.169'},
+        #     "35-0-麻黄汤":{"太阳病":'0.00',"头痛":'0.094',"发热":'0.041',"身疼":'0.094',"腰痛":'0.094',"骨节疼痛":'0.094',"恶风":'0.041',"无汗":'0.094',"喘":'0.094'},
+        #     "42-0-桂枝汤":{"太阳病":'0.00',"先发汗不解":'0.123',"脉浮弱":'0.282'},
+        #     "44-0-桂枝汤":{"太阳病":'0.00',"先发汗不解":'0.184'},
+        #     "45-0-桂枝汤":{"太阳病":'0.00',"先发汗不解":'0.123',"脉浮":'0.282'}
+        # }
+        #以上测试数据被注释的原因：比起BM25唯一区别就是 
+        #此算法多除了一次方剂证候数(#从数据本身也极易看出)，
+        # 而这在余弦相似度算法里是多余的，无任何作用。
         self.expected_BM25={#key的格式="条文编号-方名-防同名方剂后缀"，类似数据库的多列主键
             "13-0-桂枝汤":{"太阳病":'0.000',"发热":'0.368',"恶寒":'0.544',"汗出":'0.544',"恶风":'0.368'},
             "14-0-桂枝加葛根汤":{"太阳病":'0.000',"项背强几几":'0.845',"汗出":'0.544',"恶风":'0.368'},
@@ -128,14 +131,14 @@ class TestDiagnosis(unittest.TestCase):
         assert recomend_ids==[13, 14, 27,35, 42, 44, 45]
 
         
-
-        diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.TF_IDF_2)
-        #diagnosis.__init__(self.norm,self.clause_fang_patns,Correl.AVG)
-        recomends=diagnosis.recommend_fang({'发热','恶寒','汗出'})#14/27/13/35/42/44/45
-        recomend_ids=[r.clause_fang_patn.clause_id for r in recomends]
-        assert recomend_ids==[13,14,27,35,42,44,45]
-        assert recomends[0].clause_fang_patn.fang_patn.fang=="桂枝汤"
-        assert recomends[0].clause_text.startswith("13.")#条文正确加载了
+        #TF_IDF_2算法被废弃
+        # diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.TF_IDF_2)
+        # #diagnosis.__init__(self.norm,self.clause_fang_patns,Correl.AVG)
+        # recomends=diagnosis.recommend_fang({'发热','恶寒','汗出'})#14/27/13/35/42/44/45
+        # recomend_ids=[r.clause_fang_patn.clause_id for r in recomends]
+        # assert recomend_ids==[13,14,27,35,42,44,45]
+        # assert recomends[0].clause_fang_patn.fang_patn.fang=="桂枝汤"
+        # assert recomends[0].clause_text.startswith("13.")#条文正确加载了
 
         diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.BM25)
         recomends=diagnosis.recommend_fang({'发热','恶寒','汗出'})#14/27/13/35/42/44/45
@@ -163,17 +166,18 @@ class TestDiagnosis(unittest.TestCase):
                 for patn,weight in entry.fang_patn.patterns.items():
                     norm_patn=diagnosis.normalize_term(patn,self.norm)
                     assert Decimal(expected[entry.fang_patn.fang][norm_patn])==weight
+    
+    #vs BM25,此算法多余，故删除
+    # def test_build_correlation_tf_idf_2(self):
+    #     self.prepare_data()
+    #     diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.TF_IDF_2)
+    #     expected=self.expected_tf_idf2
 
-    def test_build_correlation_tf_idf_2(self):
-        self.prepare_data()
-        diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.TF_IDF_2)
-        expected=self.expected_tf_idf2
-
-        for entry in diagnosis.clause_fang_patns:
-                new_fang_key=f"{entry.clause_id}-{entry.clause_seg_id}-{entry.fang_patn.fang}"
-                for patn,weight in entry.fang_patn.patterns.items():
-                    norm_patn=diagnosis.normalize_term(patn,self.norm)
-                    assert Decimal(expected[new_fang_key][norm_patn])==weight
+    #     for entry in diagnosis.clause_fang_patns:
+    #             new_fang_key=f"{entry.clause_id}-{entry.clause_seg_id}-{entry.fang_patn.fang}"
+    #             for patn,weight in entry.fang_patn.patterns.items():
+    #                 norm_patn=diagnosis.normalize_term(patn,self.norm)
+    #                 assert Decimal(expected[new_fang_key][norm_patn])==weight
 
     def test_build_correlation_BM25(self):
         self.prepare_data()
