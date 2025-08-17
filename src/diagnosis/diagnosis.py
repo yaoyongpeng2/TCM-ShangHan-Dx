@@ -353,53 +353,6 @@ class Diagnosis:
     #                 norm_patn=self.normalize_term(patn,self.norm)
     #                 entry.fang_patn.patterns[patn]=clause_fang_patn_dict[new_fang_key][norm_patn]
 
-    def build_pattern_fang_idf(self):
-
-        #转成字典，#key的格式="条文编号-段落编号-方剂名，顺便归一化证候
-        #TF的分子=证候 s 在方剂 f 中出现的次数=永远为1
-        #TF的分母=条文方剂 c_f 中所有证候的总数
-        clause_fang_patn_dict=defaultdict(lambda:defaultdict(Decimal))
-        for entry in self.clause_fang_patns:
-                new_fang_key=f"{entry.clause_id}-{entry.clause_seg_id}-{entry.fang}"
-                clause_fang_patn_dict[new_fang_key]={self.normalize_term(s,self.norm):Decimal() for s in entry.patterns}
-
-        #TF(s, f) = (证候 s 在方剂 f 中出现的次数) / (方剂 f 中所有证候的总数)
-        tf=defaultdict(lambda:defaultdict(Decimal))
-        for new_key in clause_fang_patn_dict:
-            for patn in clause_fang_patn_dict[new_key]:
-                #避免因二进制浮点数无法精确表示十进制数量而可能出现的问题，使用Decimal,方便相等性测试
-                tf[new_key][patn]=Decimal(1)/Decimal(len(clause_fang_patn_dict[new_key].keys()))#一个条方的证候不会重复，故总是1
-        #IDF的分子=方剂集合 F 中的总"条文方剂"数
-        fang_count=len(clause_fang_patn_dict.keys())
-
-        #IDF的分母=包含证候 s 的方剂数
-        #patn_fang=defaultdict(set)#同一方剂多次包含算多次,故不用set
-        patn_fang=defaultdict(list)#因为新方名带clause_id和列表索引，不重复，故set list都可以
-        for new_key, patns in clause_fang_patn_dict.items():
-            for patn in patns:
-                #用能new_key，不用其中的方剂名。因为本算法不再是1方剂=1文档，而是1条文段落=1文档
-                patn_fang[self.normalize_term(patn,self.norm)].append(new_key)
-               
-        
-        idf=defaultdict(lambda:defaultdict(Decimal))
-        for patn in patn_fang:
-            #idf[patn]=Decimal(log(Decimal(len(patn_fang[patn]))/Decimal(fang_count),10))#精度有缺失
-            idf[patn]=(Decimal(fang_count)/Decimal(len(patn_fang[patn]))).log10()#精度一直不缺失
-
-                
-        #correlations=defaultdict(lambda:defaultdict(Decimal))
-        for new_key in clause_fang_patn_dict:
-            for patn in clause_fang_patn_dict[new_key]:
-                #Decimal + 四舍五入 保留精度，方便以后相等性测试
-                clause_fang_patn_dict[new_key][patn]=(tf[new_key][patn]*idf[patn]).quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
-        
-        #更新到原始数据
-        for entry in self.clause_fang_patns:
-                new_fang_key=f"{entry.clause_id}-{entry.clause_seg_id}-{entry.fang}"
-                for patn in entry.patterns:
-                    norm_patn=self.normalize_term(patn,self.norm)
-                    entry.patterns[patn]=clause_fang_patn_dict[new_fang_key][norm_patn]
-
     def build_correlation_BM25(self):
         """
         算法思路：证候=词语,方剂=文档，某个条文里的方剂（后简称条文方剂）算一个文档，即使该方剂名重复出现。
@@ -427,8 +380,8 @@ class Diagnosis:
         #TF的分母=条文方剂 c_f 中所有证候的总数
         clause_fang_patn_dict=defaultdict(lambda:defaultdict(Decimal))
         for entry in self.clause_fang_patns:
-                new_fang_key=f"{entry.clause_id}-{entry.clause_seg_id}-{entry.fang}"
-                clause_fang_patn_dict[new_fang_key]={self.normalize_term(p,self.norm):Decimal() for p in entry.patterns}
+                new_key=f"{entry.clause_id}-{entry.clause_seg_id}"
+                clause_fang_patn_dict[new_key]={self.normalize_term(p,self.norm):Decimal() for p in entry.patterns}
 
         #TF(s, f) = (证候 s 在方剂 f 中出现的次数) / (方剂 f 中所有证候的总数)
         # tf=defaultdict(lambda:defaultdict(Decimal))
@@ -491,7 +444,7 @@ class Diagnosis:
         norm_query_patn={self.normalize_term(p,self.norm) for p in query_patns}
         for entry in self.clause_fang_patns:
             id=entry.clause_id
-            clause_text=self.clauses[id]
+            clause_text=self.clauses.get(id,"")#找不到条文文本，置空，不可出异常
             norm_fang_patns={self.normalize_term(p,self.norm) for p in entry.patterns}
              #query的默认权重，应从全局证候特异性里取值，不该是1或0，否则：
             # 即使query与条文方剂的证候完全重叠，相似度也达不到100%，这不合理
