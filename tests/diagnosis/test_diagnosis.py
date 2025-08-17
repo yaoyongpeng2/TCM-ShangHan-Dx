@@ -63,6 +63,9 @@ class TestDiagnosis(unittest.TestCase):
         #     "麻黄汤":{"太阳病":'0.00',"头痛":'0.067',"发热":'0.014',"身疼":'0.067',"腰痛":'0.067',"骨节疼痛":'0.067',"恶风":'0.014',"无汗":'0.067',"喘":'0.067'}
         # }
 
+        #以下测试数据被注释的原因：比起BM25唯一区别就是 
+        #此算法多除了一次方剂证候数(#从数据本身也极易看出)，
+        # 而这在余弦相似度算法里是多余的，无任何作用。
         # self.expected_tf_idf2={#key的格式="条文编号-方名-防同名方剂后缀"，类似数据库的多列主键
         #     "13-0-桂枝汤":{"太阳病":'0.000',"发热":'0.074',"恶寒":'0.109',"汗出":'0.109',"恶风":'0.074'},
         #     "14-0-桂枝加葛根汤":{"太阳病":'0.0',"项背强几几":'0.211',"汗出":'0.136',"恶风":'0.092'},
@@ -72,9 +75,7 @@ class TestDiagnosis(unittest.TestCase):
         #     "44-0-桂枝汤":{"太阳病":'0.00',"先发汗不解":'0.184'},
         #     "45-0-桂枝汤":{"太阳病":'0.00',"先发汗不解":'0.123',"脉浮":'0.282'}
         # }
-        #以上测试数据被注释的原因：比起BM25唯一区别就是 
-        #此算法多除了一次方剂证候数(#从数据本身也极易看出)，
-        # 而这在余弦相似度算法里是多余的，无任何作用。
+
         self.fang_file_ids=self.prepare_ids()
     def prepare_ids(self):
         ids=[12,13,14,15,15,16,17,18,19,
@@ -136,11 +137,11 @@ class TestDiagnosis(unittest.TestCase):
          #统计条文段落编号并改变格式
         clause_fang_patns:list[ClauseFangPatn]=[]
         seg_count=defaultdict(int)#默认值=0
-        for clause_id,fang,fang_patns in clauses:
+        for clause_id,fang,patns in clauses:
             seg_count[clause_id]+=1#clause_id有重复=条文被拆分了
-            patterns={p:Decimal() for p in fang_patns}
+            patterns={p:Decimal() for p in patns}
             clause_fang_patns.append(ClauseFangPatn(clause_id=clause_id,clause_seg_id=seg_count[clause_id]-1,
-                                                    fang_patn=FangPatn(fang=fang,patterns=patterns)))
+                                                    fang=fang,patterns=patterns))
 
         expected_weight={
             "太阳病":'0.176',"发热":'0.528',"恶风":'0.528',
@@ -184,11 +185,11 @@ class TestDiagnosis(unittest.TestCase):
                  #统计条文段落编号并改变格式
         clause_fang_patns:list[ClauseFangPatn]=[]
         seg_count=defaultdict(int)#默认值=0
-        for clause_id,fang,fang_patns in raw_input:
+        for clause_id,fang,patns in raw_input:
             seg_count[clause_id]+=1#clause_id有重复=条文被拆分了
-            patterns={p:Decimal() for p in fang_patns}
+            patterns={p:Decimal() for p in patns}
             clause_fang_patns.append(ClauseFangPatn(clause_id=clause_id,clause_seg_id=seg_count[clause_id]-1,
-                                                    fang_patn=FangPatn(fang=fang,patterns=patterns)))
+                                                    fang=fang,patterns=patterns))
 
         expected_weight={"证1":'0',"证2":'0.051',"证3":'0.109',"证4":'0.176',"证5":'0.255',"证6":'0.352',
                          "特异证1":'0.477',"特异证2":'0.653',"特异证3":'0.954'}
@@ -196,7 +197,7 @@ class TestDiagnosis(unittest.TestCase):
         ]
         return (clause_fang_patns,expected_weight,expected_recommend_score)
      
-    def _test_load_from_file(self): 
+    def test_load_from_file(self): 
         self.prepare_data()
         diagnosis=Diagnosis()
         ids=[c.clause_id for c in diagnosis.clause_fang_patns]
@@ -204,66 +205,7 @@ class TestDiagnosis(unittest.TestCase):
         #assert self.fang_file_ids==ids[0:len(self.fang_file_ids)]
         for i in range(len(self.fang_file_ids)):
             assert self.fang_file_ids[i]==ids[i]
-    # def _test_recommend_fang(self):
-    #     self.prepare_data()
-#         TF_IDF_1算法被废弃
-#         diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.TF_IDF_1)
-#         #diagnosis.__init__(self.norm,self.clause_fang_patns,Correl.AVG)
-#         recomends=diagnosis.recommend_fang({'发热','恶寒','汗出'})
-#         recomend_ids=[r.clause_fang_patn.clause_id for r in recomends]
-# #        assert recomend_ids==[13, 27, 14, 35, 42, 44, 45]
-#         assert recomend_ids==[13, 14, 27,35, 42, 44, 45]
-        
-        #TF_IDF_2算法被废弃
-        # diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.TF_IDF_2)
-        # #diagnosis.__init__(self.norm,self.clause_fang_patns,Correl.AVG)
-        # recomends=diagnosis.recommend_fang({'发热','恶寒','汗出'})#14/27/13/35/42/44/45
-        # recomend_ids=[r.clause_fang_patn.clause_id for r in recomends]
-        # assert recomend_ids==[13,14,27,35,42,44,45]
-        # assert recomends[0].clause_fang_patn.fang_patn.fang=="桂枝汤"
-        # assert recomends[0].clause_text.startswith("13.")#条文正确加载了
-
-        # diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.BM25)
-        # recomends=diagnosis.recommend_fang({'发热','恶寒','汗出'})#14/27/13/35/42/44/45
-        # recomend_ids=[r.clause_fang_patn.clause_id for r in recomends]
-        # assert recomend_ids==[13,27,14,35,42,44,45]#为何有时是[13,14,27,35,42,44,45]
-        # assert recomends[0].clause_fang_patn.fang_patn.fang=="桂枝汤"
-        # assert recomends[0].clause_text.startswith("13.")#条文正确加载了
-
-    #AVG算法被废弃
-    # def test_build_correlation_avg(self):
-    #     self.prepare_data()
-    #     diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.AVG)
-    #     expected=self.expected_avg
-    #     for entry in diagnosis.clause_fang_patns:
-    #         for patn,weight in entry.fang_patn.patterns.items():
-    #             norm_patn=diagnosis.normalize_term(patn,self.norm)
-    #             assert Decimal(expected[entry.fang_patn.fang][norm_patn])==weight
-
-    #TF_IDF_1算法被废弃
-    # def test_build_correlation_tf_idf_1(self):
-    #     self.prepare_data()
-    #     diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.TF_IDF_1)
-    #     expected=self.expected_tf_idf1
-
-    #     for entry in diagnosis.clause_fang_patns:
-    #             for patn,weight in entry.fang_patn.patterns.items():
-    #                 norm_patn=diagnosis.normalize_term(patn,self.norm)
-    #                 assert Decimal(expected[entry.fang_patn.fang][norm_patn])==weight
-    
-    #vs BM25,此算法多余，故删除
-    # def test_build_correlation_tf_idf_2(self):
-    #     self.prepare_data()
-    #     diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.TF_IDF_2)
-    #     expected=self.expected_tf_idf2
-
-    #     for entry in diagnosis.clause_fang_patns:
-    #             new_fang_key=f"{entry.clause_id}-{entry.clause_seg_id}-{entry.fang_patn.fang}"
-    #             for patn,weight in entry.fang_patn.patterns.items():
-    #                 norm_patn=diagnosis.normalize_term(patn,self.norm)
-    #                 assert Decimal(expected[new_fang_key][norm_patn])==weight
-
-    def _test_build_correlation_BM25(self):
+    def test_build_correlation_BM25(self):
         norm,clause_fang_patns,expected_weight,score=self.prepare_real_data()
         diagnosis=Diagnosis(norm,clause_fang_patns,Correl.BM25)
 
@@ -277,7 +219,7 @@ class TestDiagnosis(unittest.TestCase):
         diagnosis=Diagnosis(norm,clause_fang_patns,Correl.BM25)
         scored=[]
         for i in range(len(clause_fang_patns)):
-            query=clause_fang_patns[i].fang_patn.patterns.keys()
+            query=clause_fang_patns[i].patterns.keys()
             recommends=diagnosis.recommend_fang(query)
             recommend_scores=[r.match_score.quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)\
                                for r in recommends if r.clause_fang_patn.clause_id]
