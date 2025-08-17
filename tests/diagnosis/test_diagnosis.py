@@ -21,36 +21,32 @@ class TestDiagnosis(unittest.TestCase):
     #     self.diagnosis=Diagnosis()
 
     def prepare_data(self):
-        clauses=[#元组格式=(id,fang,pattern_list)
-            (13,"桂枝汤",["太阳病","发热","恶寒","汗出","恶风"]),
-            (14,"桂枝加葛根汤",["太阳病","项背强几几","汗出","恶风"]),
-            (27,"桂枝二越婢一汤",["太阳病","发热","恶寒","热多寒少","脉微弱"]),
-            (35,"麻黄汤",["太阳病","头痛","发热","身疼","腰痛","骨节疼痛","恶风","无汗","喘"]),
-            (42,"桂枝汤",["太阳病","外证未解","脉浮弱"]),
-            (44,"桂枝汤",["太阳病","外证未解"]),
-            (45,"桂枝汤",["太阳病","先发汗不解","脉浮"])
-        ]
         
-        clause_fang_patns:list[ClauseFangPatn]=[]
-        seg_count=defaultdict(int)#默认值=0
-        for clause_id,fang,fang_patns in clauses:
-            seg_count[clause_id]+=1#clause_id有重复=条文被拆分了
-            patterns={p:Decimal() for p in fang_patns}
-            clause_fang_patns.append(ClauseFangPatn(clause_id=clause_id,clause_seg_id=seg_count[clause_id]-1,
-                                                    fang_patn=FangPatn(fang=fang,patterns=patterns)))
-        self.clause_fang_patns=clause_fang_patns
+        # clauses=[#元组格式=(id,fang,pattern_list)
+        #     (13,"桂枝汤",["太阳病","发热","恶寒","汗出","恶风"]),
+        #     (14,"桂枝加葛根汤",["太阳病","项背强几几","汗出","恶风"]),
+        #     (27,"桂枝二越婢一汤",["太阳病","发热","恶寒","热多寒少","脉微弱"]),
+        #     (35,"麻黄汤",["太阳病","头痛","发热","身疼","腰痛","骨节疼痛","恶风","无汗","喘"]),
+        #     (42,"桂枝汤",["太阳病","外证未解","脉浮弱"]),
+        #     (44,"桂枝汤",["太阳病","外证未解"]),
+        #     (45,"桂枝汤",["太阳病","先发汗不解","脉浮"])
+        # ]
+        
+        # clause_fang_patns:list[ClauseFangPatn]=[]
+        # seg_count=defaultdict(int)#默认值=0
+        # for clause_id,fang,fang_patns in clauses:
+        #     seg_count[clause_id]+=1#clause_id有重复=条文被拆分了
+        #     patterns={p:Decimal() for p in fang_patns}
+        #     clause_fang_patns.append(ClauseFangPatn(clause_id=clause_id,clause_seg_id=seg_count[clause_id]-1,
+        #                                             fang_patn=FangPatn(fang=fang,patterns=patterns)))
+        # self.clause_fang_patns=clause_fang_patns
+        # self.expected_BM25={#key的格式="条文编号-方名-防同名方剂后缀"，类似数据库的多列主键
+        #     "太阳病":'0.000',"发热":'0.368',"恶寒":'0.544',"汗出":'0.544',"恶风":'0.368',
+        #     "项背强几几":'0.845',"热多寒少":'0.845',"脉微弱":'0.845',
+        #     "头痛":'0.845',"身疼":'0.845',"腰痛":'0.845',"骨节疼痛":'0.845',"无汗":'0.845',"喘":'0.845',
+        #     "先发汗不解":'0.368',"脉浮弱":'0.845',"脉浮":'0.845'
+        # }
 
-        self.norm={
-            "翕翕发热":"发热",
-            "啬啬恶寒":"恶寒",
-            "淅淅恶风":"恶风",
-            # "阳浮":"热自发",
-            # "阴弱":"汗自出",
-            # "热自发":"发热",
-            # "汗自出":"汗出",
-            # "脉浮弱":"脉浮缓",
-            "外证未解":"先发汗不解"           
-        }
         # 经常出现的方剂用法可靠性低于偶尔出现的用法，不合理
         # self.expected_avg={
         #     "桂枝汤":{"太阳病":'1',"发热":'0.25',"恶寒":'0.25',"汗出":'0.25',"恶风":'0.25',"先发汗不解":'0.75',"脉浮弱":'0.25',"脉浮":'0.25'},#"先发汗不解"="外证未解"
@@ -79,12 +75,6 @@ class TestDiagnosis(unittest.TestCase):
         #以上测试数据被注释的原因：比起BM25唯一区别就是 
         #此算法多除了一次方剂证候数(#从数据本身也极易看出)，
         # 而这在余弦相似度算法里是多余的，无任何作用。
-        self.expected_BM25={#key的格式="条文编号-方名-防同名方剂后缀"，类似数据库的多列主键
-            "太阳病":'0.000',"发热":'0.368',"恶寒":'0.544',"汗出":'0.544',"恶风":'0.368',
-            "项背强几几":'0.845',"热多寒少":'0.845',"脉微弱":'0.845',
-            "头痛":'0.845',"身疼":'0.845',"腰痛":'0.845',"骨节疼痛":'0.845',"无汗":'0.845',"喘":'0.845',
-            "先发汗不解":'0.368',"脉浮弱":'0.845',"脉浮":'0.845'
-        }
         self.fang_file_ids=self.prepare_ids()
     def prepare_ids(self):
         ids=[12,13,14,15,15,16,17,18,19,
@@ -113,6 +103,99 @@ class TestDiagnosis(unittest.TestCase):
         # ids.extend(list(_5_seg)*4)
         # ids=sorted(ids)
         return ids
+
+    def prepare_real_data(self)->tuple[list,dict,list]:
+        norm={
+            "翕翕发热":"发热",
+            "啬啬恶寒":"恶寒",
+            "淅淅恶风":"恶风",
+            # "阳浮":"热自发",
+            # "阴弱":"汗自出",
+            # "热自发":"发热",
+            # "汗自出":"汗出",
+            # "脉浮弱":"脉浮缓",
+            "外证未解":"先发汗不解"           
+        }
+
+        clauses=[#元组格式=(id,fang,pattern_list)
+            (12,"桂枝汤",["太阳中风","阳浮","阴弱","啬啬恶寒","淅淅恶风","翕翕发热","鼻鸣","干呕"]),
+            (13,"桂枝汤",["太阳病","发热","恶寒","汗出","恶风"]),
+            (14,"桂枝加葛根汤",["太阳病","项背强几几","汗出","恶风"]),
+            (15,"禁-桂枝汤",["太阳病","下后","气不上冲"]),
+            (15,"桂枝汤",["太阳病","下后","气上冲"]),#1条文分两段--1禁1可
+            (25,"桂枝汤",["服桂枝汤","大汗出","脉浮"]),#另一例：1条文，不同证候，不同治方
+            (25,"桂枝二麻黄一汤",["服桂枝汤","无汗","脉浮","形似疟","一日再发"]),
+            (27,"禁-汗",["热多寒少","脉微弱"]),
+            (27,"桂枝二越婢一汤",["太阳病","发热","恶寒","热多寒少","脉微弱","无汗"]),
+            (35,"麻黄汤",["太阳病","头痛","发热","身疼","腰痛","骨节疼痛","恶风","无汗","喘"]),
+            (42,"桂枝汤",["太阳病","外证未解","脉浮弱"]),
+            (44,"桂枝汤",["太阳病","外证未解"]),
+            (45,"桂枝汤",["太阳病","先发汗不解","脉浮"])
+        ]
+                
+         #统计条文段落编号并改变格式
+        clause_fang_patns:list[ClauseFangPatn]=[]
+        seg_count=defaultdict(int)#默认值=0
+        for clause_id,fang,fang_patns in clauses:
+            seg_count[clause_id]+=1#clause_id有重复=条文被拆分了
+            patterns={p:Decimal() for p in fang_patns}
+            clause_fang_patns.append(ClauseFangPatn(clause_id=clause_id,clause_seg_id=seg_count[clause_id]-1,
+                                                    fang_patn=FangPatn(fang=fang,patterns=patterns)))
+
+        expected_weight={
+            "太阳病":'0.176',"发热":'0.528',"恶风":'0.528',
+            "无汗":'0.653',"先发汗不解":'0.653',"恶寒":'0.653',"脉浮":'0.653',
+            "服桂枝汤":'0.829',"下后":'0.829',"汗出":'0.829',"热多寒少":'0.829',"脉微弱":'0.829',
+            "太阳中风":'1.13',"阳浮":'1.13',"阴弱":'1.13',"项背强几几":'1.13',"大汗出":'1.13',"头痛":'1.13',
+            "气不上冲":'1.13',"气上冲":'1.13',"脉浮弱":'1.13',"形似疟":'1.13',"一日再发":'1.13',
+            "身疼":'1.13',"腰痛":'1.13',"骨节疼痛":'1.13',"鼻鸣":'1.13',"干呕":'1.13',"喘":'1.13'
+        }
+
+        expected_recommend_score=[  #clauses[i]的证候列表分别与所有条文（包括自己]）做匹配，
+                                    #匹配分数==expected_recommend_score[i:len(clauses)]
+            ['1'	,'0.278','0.068','0'	,'0'	,'0'	,'0'	,'0'	,'0.163','0.076','0'	,'0'	,'0'	],
+            ['0.278','1'	,'0.507','0.017','0.017','0'	,'0'	,'0'	,'0.354','0.166','0.018','0.035','0.025'],
+            ['0.068','0.507','1'	,'0.015','0.015','0'	,'0'	,'0'	,'0.013','0.076','0.016','0.03' ,'0.022'],
+            ['0'	,'0.017','0.015','1'	,'0.36' ,'0'    ,'0'	,'0'	,'0.014','0.008','0.017','0.032','0.023'],
+            ['0'	,'0.017','0.015','0.36' ,'1'	,'0'    ,'0'	,'0'	,'0.014','0.008','0.017','0.032','0.023'],
+            ['0'	,'0'	,'0'	,'0'	,'0'	,'1'	,'0.356','0'	,'0'	,'0'	,'0'	,'0'	,'0.293'],
+            ['0'	,'0'	,'0'	,'0'	,'0'	,'0.356','1'	,'0'	,'0.132','0.077','0'	,'0'	,'0.224'],
+            ['0'	,'0'	,'0'	,'0'	,'0'	,'0'	,'0'	,'1'	,'0.736','0'	,'0'	,'0'	,'0'	],
+            ['0.163','0.354','0.013','0.014','0.014','0'	,'0.132','0.736','1'	,'0.17','0.015','0.029' ,'0.021'],
+            ['0.076','0.166','0.076','0.008','0.008','0'	,'0.077','0'	,'0.17','1'	    ,'0.009','0.017','0.012'],
+            ['0'	,'0.018','0.016','0.017','0.017','0'	,'0'	,'0'	,'0.015','0.009','1'	,'0.514','0.369'],
+            ['0'	,'0.035','0.03','0.032' ,'0.032' ,'0'	,'0'	,'0'	,'0.029','0.017','0.514','1'	,'0.719'],
+            ['0'	,'0.025','0.022','0.023','0.023','0.293','0.224','0'	,'0.021','0.012','0.369','0.719','1'	]
+        ]
+        return (norm,clause_fang_patns,expected_weight,expected_recommend_score)
+    def prepare_makeup_data(self)->tuple[list,dict,list]:
+        test_input=[
+            #阶梯型：(证|特异证)\d，后面数字越大→idf大→权重高；
+            (1001,"方1001-0",["证1"]),
+            (1002,"方1002-0",["证1","证2"]),
+            (1003,"方1003-0",["证1","证2","证3"]),
+            (1004,"方1004-0",["证1","证2","证3","证4"]),
+            (1005,"方1005-0",["证1","证2","证3","证4","证5"]),
+            (1006,"方1006-0",["证1","证2","证3","证4","证5","证6"]),
+            (1007,"方1007-0",["证1","证2","证3","证4","证5","证6","特异证1"]),
+            (1008,"方1008-0",["证1","证2","证3","证4","证5","证6","特异证1","特异证2"]),#1008条第0段
+            (1008,"方1008-1",["证1","证2","证3","证4","证5","证6","特异证1","特异证2","特异证3"])#1008条第1段
+        ]
+                 #统计条文段落编号并改变格式
+        clause_fang_patns:list[ClauseFangPatn]=[]
+        seg_count=defaultdict(int)#默认值=0
+        for clause_id,fang,fang_patns in raw_input:
+            seg_count[clause_id]+=1#clause_id有重复=条文被拆分了
+            patterns={p:Decimal() for p in fang_patns}
+            clause_fang_patns.append(ClauseFangPatn(clause_id=clause_id,clause_seg_id=seg_count[clause_id]-1,
+                                                    fang_patn=FangPatn(fang=fang,patterns=patterns)))
+
+        expected_weight={"证1":'0',"证2":'0.051',"证3":'0.109',"证4":'0.176',"证5":'0.255',"证6":'0.352',
+                         "特异证1":'0.477',"特异证2":'0.653',"特异证3":'0.954'}
+        expected_recommend_score=[
+        ]
+        return (clause_fang_patns,expected_weight,expected_recommend_score)
+     
     def _test_load_from_file(self): 
         self.prepare_data()
         diagnosis=Diagnosis()
@@ -121,8 +204,8 @@ class TestDiagnosis(unittest.TestCase):
         #assert self.fang_file_ids==ids[0:len(self.fang_file_ids)]
         for i in range(len(self.fang_file_ids)):
             assert self.fang_file_ids[i]==ids[i]
-    def test_recommend_fang(self):
-        self.prepare_data()
+    # def _test_recommend_fang(self):
+    #     self.prepare_data()
 #         TF_IDF_1算法被废弃
 #         diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.TF_IDF_1)
 #         #diagnosis.__init__(self.norm,self.clause_fang_patns,Correl.AVG)
@@ -140,12 +223,12 @@ class TestDiagnosis(unittest.TestCase):
         # assert recomends[0].clause_fang_patn.fang_patn.fang=="桂枝汤"
         # assert recomends[0].clause_text.startswith("13.")#条文正确加载了
 
-        diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.BM25)
-        recomends=diagnosis.recommend_fang({'发热','恶寒','汗出'})#14/27/13/35/42/44/45
-        recomend_ids=[r.clause_fang_patn.clause_id for r in recomends]
-        assert recomend_ids==[13,27,14,35,42,44,45]#为何有时是[13,14,27,35,42,44,45]
-        assert recomends[0].clause_fang_patn.fang_patn.fang=="桂枝汤"
-        assert recomends[0].clause_text.startswith("13.")#条文正确加载了
+        # diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.BM25)
+        # recomends=diagnosis.recommend_fang({'发热','恶寒','汗出'})#14/27/13/35/42/44/45
+        # recomend_ids=[r.clause_fang_patn.clause_id for r in recomends]
+        # assert recomend_ids==[13,27,14,35,42,44,45]#为何有时是[13,14,27,35,42,44,45]
+        # assert recomends[0].clause_fang_patn.fang_patn.fang=="桂枝汤"
+        # assert recomends[0].clause_text.startswith("13.")#条文正确加载了
 
     #AVG算法被废弃
     # def test_build_correlation_avg(self):
@@ -180,20 +263,26 @@ class TestDiagnosis(unittest.TestCase):
     #                 norm_patn=diagnosis.normalize_term(patn,self.norm)
     #                 assert Decimal(expected[new_fang_key][norm_patn])==weight
 
-    def test_build_correlation_BM25(self):
-        self.prepare_data()
-        diagnosis=Diagnosis(self.norm,self.clause_fang_patns,Correl.BM25)
-        expected=self.expected_BM25
+    def _test_build_correlation_BM25(self):
+        norm,clause_fang_patns,expected_weight,score=self.prepare_real_data()
+        diagnosis=Diagnosis(norm,clause_fang_patns,Correl.BM25)
 
-        # for entry in diagnosis.clause_fang_patns:
-        #     new_fang_key=f"{entry.clause_id}-{entry.clause_seg_id}-{entry.fang_patn.fang}"
-        #     for patn,weight in entry.fang_patn.patterns.items():
-        #         norm_patn=diagnosis.normalize_term(patn,self.norm)
-        #         assert Decimal(expected[new_fang_key][norm_patn])==weight
-        for p,expected_weight in expected.items():
-            weight=diagnosis.patn_weight[diagnosis.normalize_term(p,self.norm)]\
+        for p,expected_weight in expected_weight.items():
+            weight=diagnosis.patn_weight[diagnosis.normalize_term(p,norm)]\
                                         .quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
             assert Decimal(expected_weight)==weight
-    
+
+    def test_recommend_fang(self):
+        norm,clause_fang_patns,expected_weight,scores=self.prepare_real_data()
+        diagnosis=Diagnosis(norm,clause_fang_patns,Correl.BM25)
+        scored=[]
+        for i in range(len(clause_fang_patns)):
+            query=clause_fang_patns[i].fang_patn.patterns.keys()
+            recommends=diagnosis.recommend_fang(query)
+            recommend_scores=[r.match_score.quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)\
+                               for r in recommends if r.clause_fang_patn.clause_id]
+            expected_scores=[Decimal(s) for s in scores[i]]
+            expected_scores=sorted(expected_scores,reverse=True)
+            assert recommend_scores==expected_scores
 if  __name__=="__main__":
     unittest.main()

@@ -52,7 +52,7 @@ class Recommend(BaseModel):
     clause_text:str#伤寒论条文原文
     #fang_patn:FangPatn
     
-    match_score:float=0.0
+    match_score:Decimal=Decimal('0')
     # def __init__(self, clause_id:int, clause:str,fang_patn:FangPatn,score:float=0.0):
     #     super().__init__(clause_id=clause_id, clause=clause,fang_patn=fang_patn,match_score=score)
     #     self.clause_id=clause_id
@@ -477,7 +477,14 @@ class Diagnosis:
                 # 已经包含长度的影响，且完美归一化，所以简化如下：TF(所有方剂所有patn)=1。
         
         # IDF的分子=方剂集合 F 中的总"条文方剂"数
-        clause_fang_count=len(clause_fang_patn_dict.keys())
+        clause_fang_count=len(clause_fang_patn_dict.keys())+Decimal('0.5')
+        #为何+0.5
+        #若某个证候p出现于所有条文中（实际情况不存在，但理论上存在）
+        #则idf=log(N(f)/n(f,p))=log(1)=0，
+        #变成idf=log((N(f)+0.5)/n(f,p))=log(1+0.5/n(f,p)) 此数>0，且接近0
+        #其中n(f，p)=包含p的条文方剂数目；N(f):所有条文方剂数目
+        #为何Decimal？为了后续计算保持精度以及测试数据比较。
+
 
         #IDF的分母=包含证候 s 的方剂数
         #patn_fang=defaultdict(set)#同一方剂多次包含算多次,故不用set
@@ -527,6 +534,12 @@ class Diagnosis:
             dot=sum(self.patn_weight.get(p,0)**2 for p in norm_query_patn.intersection(norm_fang_patns))
             if dot==Decimal(0):
                 score=0
+                #有个例外：证候完全匹配，dot==0是因为所有证候权重==0，应判定为完全匹配
+                #若某个证候p出现于所有条文中（实际情况不存在，但理论上存在）
+                # 则idf=log(N(f)/n(f,p))=log(1)=0
+                #其中n(f，p)=包含p的条文方剂数目；N(f):所有条文方剂数目
+                # if norm_query_patn==norm_fang_patns:
+                #     score=1
             else:#dot>0，因为所有权重非负数，则方剂证候权重中必有一个>0，则fang_norm>0，查询证候权重同理，不会除0
                 fang_norm=Decimal(sum(self.patn_weight.get(p,0)**2 for p in norm_fang_patns)).sqrt()#全局皆无证权重=0
                 #方剂独有证候部分，点积时不计入是合理的；但"模"计算时必须计入，这样虽降低了相似度，但降得有理：
