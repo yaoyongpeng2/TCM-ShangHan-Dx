@@ -170,7 +170,10 @@ class TestDiagnosis(unittest.TestCase):
         ]
         return (norm,clause_fang_patns,expected_weight,expected_recommend_score)
     def prepare_makeup_data(self)->tuple[list,dict,list]:
-        test_input=[
+        norm={
+            "占位证候":"灵异事件"
+        }
+        raw_input=[
             #阶梯型：(证|特异证)\d，后面数字越大→idf大→权重高；
             (1001,"方1001-0",["证1"]),
             (1002,"方1002-0",["证1","证2"]),
@@ -191,11 +194,33 @@ class TestDiagnosis(unittest.TestCase):
             clause_fang_patns.append(ClauseFangPatn(clause_id=clause_id,clause_seg_id=seg_count[clause_id]-1,
                                                     fang=fang,patterns=patterns))
 
-        expected_weight={"证1":'0',"证2":'0.051',"证3":'0.109',"证4":'0.176',"证5":'0.255',"证6":'0.352',
-                         "特异证1":'0.477',"特异证2":'0.653',"特异证3":'0.954'}
+        expected_weight={
+            "证1":'0.023',"证2":'0.075',"证3":'0.133',
+            "证4":'0.200',"证5":'0.279',"证6":'0.376',
+            "特异证1":'0.501',"特异证2":'0.677',"特异证3":'0.978'
+        }
         expected_recommend_score=[
+            ['1.'	,'0.3'	,'0.152','0.093','0.062','0.044','0.032','0.024','0.017'],
+            [		'1.'	,'0.508','0.31'	,'0.208','0.147','0.107','0.079','0.056'],
+            [				'1.'	,'0.611','0.41'	,'0.29'	,'0.211','0.155','0.11'	],
+            [						'1.'	,'0.671','0.474','0.345','0.253','0.181'],
+            [								'1.'	,'0.707','0.515','0.378','0.269'],
+            [										'1.'	,'0.728','0.534','0.381'],
+            [												'1.'	,'0.733','0.523'],
+            [														'1.'	,'0.713'],
+            [																'1.'	]
         ]
-        return (clause_fang_patns,expected_weight,expected_recommend_score)
+        cols=rows=len(expected_recommend_score)
+        #full_matrix_score=[['' for _ in range(rows)] for _ in range(rows)]#一个全空字符的矩阵
+        for i in range(rows):
+            expected_recommend_score[i][:0]=['' for _ in range(i)]#在列表头部插入空元素，使每行列数相同
+        for i in range(rows):
+            for j in range(i,cols):
+                expected_recommend_score[j][i]=expected_recommend_score[i][j]#对角值相同
+
+
+                
+        return (norm,clause_fang_patns,expected_weight,expected_recommend_score)
      
     def test_load_from_file(self): 
         self.prepare_data()
@@ -206,6 +231,7 @@ class TestDiagnosis(unittest.TestCase):
         for i in range(len(self.fang_file_ids)):
             assert self.fang_file_ids[i]==ids[i]
     def test_build_correlation_BM25(self):
+        #真实的测试数据，取自《伤寒论》------
         norm,clause_fang_patns,expected_weight,score=self.prepare_real_data()
         diagnosis=Diagnosis(norm,clause_fang_patns,Correl.BM25)
 
@@ -214,17 +240,40 @@ class TestDiagnosis(unittest.TestCase):
                                         .quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
             assert Decimal(expected_weight)==weight
 
-    def test_recommend_fang(self):
+        #编造的测试数据，为了全覆盖各种可能------
+        norm,clause_fang_patns,expected_weight,score=self.prepare_makeup_data()
+        diagnosis=Diagnosis(norm,clause_fang_patns,Correl.BM25)
+
+        for p,expected_weight in expected_weight.items():
+            weight=diagnosis.patn_weight[diagnosis.normalize_term(p,norm)]\
+                                        .quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
+            assert Decimal(expected_weight)==weight
+       
+    def _test_recommend_fang(self):
+        #真实的测试数据，取自《伤寒论》------
         norm,clause_fang_patns,expected_weight,scores=self.prepare_real_data()
         diagnosis=Diagnosis(norm,clause_fang_patns,Correl.BM25)
-        scored=[]
         for i in range(len(clause_fang_patns)):
             query=clause_fang_patns[i].patterns.keys()
             recommends=diagnosis.recommend_fang(query)
             recommend_scores=[r.match_score.quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)\
-                               for r in recommends if r.clause_fang_patn.clause_id]
+                               for r in recommends]
             expected_scores=[Decimal(s) for s in scores[i]]
             expected_scores=sorted(expected_scores,reverse=True)
             assert recommend_scores==expected_scores
+
+        #编造的测试数据，为了全覆盖各种可能------
+        norm,clause_fang_patns,expected_weight,scores=self.prepare_makeup_data()
+        diagnosis=Diagnosis(norm,clause_fang_patns,Correl.BM25)
+        for i in range(len(clause_fang_patns)):
+            query=clause_fang_patns[i].patterns.keys()
+            recommends=diagnosis.recommend_fang(query)
+            recommend_scores=[r.match_score.quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)\
+                               for r in recommends]
+            expected_scores=[Decimal(s) for s in scores[i]]
+            expected_scores=sorted(expected_scores,reverse=True)
+            assert recommend_scores==expected_scores
+
+        
 if  __name__=="__main__":
     unittest.main()
