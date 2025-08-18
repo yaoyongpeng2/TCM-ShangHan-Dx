@@ -105,7 +105,7 @@ class TestDiagnosis(unittest.TestCase):
         # ids=sorted(ids)
         return ids
 
-    def prepare_real_data(self)->tuple[list,dict,list]:
+    def prepare_SHL_data(self)->tuple[list,dict,list]:
         norm={
             "翕翕发热":"发热",
             "啬啬恶寒":"恶寒",
@@ -152,22 +152,30 @@ class TestDiagnosis(unittest.TestCase):
             "身疼":'1.13',"腰痛":'1.13',"骨节疼痛":'1.13',"鼻鸣":'1.13',"干呕":'1.13',"喘":'1.13'
         }
 
-        expected_recommend_score=[  #clauses[i]的证候列表分别与所有条文（包括自己]）做匹配，
-                                    #匹配分数==expected_recommend_score[i:len(clauses)]
+        expected_recommend_score=[  #clauses[i]的证候列表分别与所有条文（包括自己]）做匹配，所得推荐分数列表存于本列表第i行
+                                    #未清晰表示意图，本列表只存储半个矩阵，另一半通过matrix[j][i]==matrix[i][j]获得
             ['1'	,'0.278','0.068','0'	,'0'	,'0'	,'0'	,'0'	,'0.163','0.076','0'	,'0'	,'0'	],
-            ['0.278','1'	,'0.507','0.017','0.017','0'	,'0'	,'0'	,'0.354','0.166','0.018','0.035','0.025'],
-            ['0.068','0.507','1'	,'0.015','0.015','0'	,'0'	,'0'	,'0.013','0.076','0.016','0.03' ,'0.022'],
-            ['0'	,'0.017','0.015','1'	,'0.36' ,'0'    ,'0'	,'0'	,'0.014','0.008','0.017','0.032','0.023'],
-            ['0'	,'0.017','0.015','0.36' ,'1'	,'0'    ,'0'	,'0'	,'0.014','0.008','0.017','0.032','0.023'],
-            ['0'	,'0'	,'0'	,'0'	,'0'	,'1'	,'0.356','0'	,'0'	,'0'	,'0'	,'0'	,'0.293'],
-            ['0'	,'0'	,'0'	,'0'	,'0'	,'0.356','1'	,'0'	,'0.132','0.077','0'	,'0'	,'0.224'],
-            ['0'	,'0'	,'0'	,'0'	,'0'	,'0'	,'0'	,'1'	,'0.736','0'	,'0'	,'0'	,'0'	],
-            ['0.163','0.354','0.013','0.014','0.014','0'	,'0.132','0.736','1'	,'0.17','0.015','0.029' ,'0.021'],
-            ['0.076','0.166','0.076','0.008','0.008','0'	,'0.077','0'	,'0.17','1'	    ,'0.009','0.017','0.012'],
-            ['0'	,'0.018','0.016','0.017','0.017','0'	,'0'	,'0'	,'0.015','0.009','1'	,'0.514','0.369'],
-            ['0'	,'0.035','0.03','0.032' ,'0.032' ,'0'	,'0'	,'0'	,'0.029','0.017','0.514','1'	,'0.719'],
-            ['0'	,'0.025','0.022','0.023','0.023','0.293','0.224','0'	,'0.021','0.012','0.369','0.719','1'	]
+            [		'1'		,'0.507','0.017','0.017','0'	,'0'	,'0'	,'0.354','0.166','0.018','0.035','0.025'],
+            [				'1'		,'0.015','0.015','0'	,'0'	,'0'	,'0.013','0.076','0.016','0.03' ,'0.022'],
+            [						'1'		,'0.36' ,'0'    ,'0'	,'0'	,'0.014','0.008','0.017','0.032','0.023'],
+            [								'1'		,'0'    ,'0'	,'0'	,'0.014','0.008','0.017','0.032','0.023'],
+            [										'1'		,'0.356','0'	,'0'	,'0'	,'0'	,'0'	,'0.293'],
+            [												'1'		,'0'	,'0.132','0.077','0'	,'0'	,'0.224'],
+            [														'1'		,'0.736','0'	,'0'	,'0'	,'0'	],
+            [																'1'		,'0.17','0.015','0.029' ,'0.021'],
+            [																		'1'		,'0.009','0.017','0.012'],
+            [																				'1'		,'0.514','0.369'],
+            [																						'1'		,'0.719'],
+            [																								'1'		]
         ]
+
+        cols=rows=len(expected_recommend_score)
+        for i in range(rows):
+            expected_recommend_score[i][:0]=['' for _ in range(i)]#在列表头部插入空元素，使每行列数相同
+        for i in range(rows):
+            for j in range(i,cols):
+                expected_recommend_score[j][i]=expected_recommend_score[i][j]#对角值相同
+
         return (norm,clause_fang_patns,expected_weight,expected_recommend_score)
     def prepare_makeup_data(self)->tuple[list,dict,list]:
         norm={
@@ -199,7 +207,9 @@ class TestDiagnosis(unittest.TestCase):
             "证4":'0.200',"证5":'0.279',"证6":'0.376',
             "特异证1":'0.501',"特异证2":'0.677',"特异证3":'0.978'
         }
-        expected_recommend_score=[
+        expected_recommend_score=[#raw_input[i]的证候列表分别与所有条文（包括自己]）做匹配，所得推荐分数列表存于本列表第i行
+                                    #未清晰表示意图，本列表只存储半个矩阵，另一半通过matrix[j][i]==matrix[i][j]获得
+            #同一行，A·B/(||A||X||B||),A·B及||A||不变，后列||B||变大，故后列分数变小
             ['1.'	,'0.3'	,'0.152','0.093','0.062','0.044','0.032','0.024','0.017'],
             [		'1.'	,'0.508','0.31'	,'0.208','0.147','0.107','0.079','0.056'],
             [				'1.'	,'0.611','0.41'	,'0.29'	,'0.211','0.155','0.11'	],
@@ -232,7 +242,7 @@ class TestDiagnosis(unittest.TestCase):
             assert self.fang_file_ids[i]==ids[i]
     def test_build_correlation_BM25(self):
         #真实的测试数据，取自《伤寒论》------
-        norm,clause_fang_patns,expected_weight,score=self.prepare_real_data()
+        norm,clause_fang_patns,expected_weight,score=self.prepare_SHL_data()
         diagnosis=Diagnosis(norm,clause_fang_patns,Correl.BM25)
 
         for p,expected_weight in expected_weight.items():
@@ -249,9 +259,9 @@ class TestDiagnosis(unittest.TestCase):
                                         .quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
             assert Decimal(expected_weight)==weight
        
-    def _test_recommend_fang(self):
+    def test_recommend_fang(self):
         #真实的测试数据，取自《伤寒论》------
-        norm,clause_fang_patns,expected_weight,scores=self.prepare_real_data()
+        norm,clause_fang_patns,expected_weight,scores=self.prepare_SHL_data()
         diagnosis=Diagnosis(norm,clause_fang_patns,Correl.BM25)
         for i in range(len(clause_fang_patns)):
             query=clause_fang_patns[i].patterns.keys()
