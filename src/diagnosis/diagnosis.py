@@ -33,13 +33,19 @@ class ClauseFangPatn(BaseModel):
 #    clause:str#伤寒论条文原文,引用self.clauses
     clause_seg_id:int=0#见注释如下：
     #一条文可能有宜有禁，如条文15，[(15,禁-桂枝汤,[证候群1,气不上冲]),(15,桂枝汤,[证候群1,气上冲])]
-    # 一条文可能有多个方或误用或禁用，如N条文29:
-    # [(29,误-桂枝汤,[证候群1])),(29,甘草干姜汤,[证候群2])，(29,芍药甘草汤,[证候群3]),
-    #  (29,调胃承气汤,[证候群5]),(29,四逆汤,[证候群6])]
-    # 条文id相同的再算出一个段落编号（从0开始，如条文15有段落编号{0,1}，条文29有段落编号{0,1,2,3,4}
+    # 一条文可能有多个方或误用或禁用，如第29条文:
+    # [(29,误-桂枝汤,[证候群1])),
+    #  (29,甘草干姜汤,[证候群2])，
+    #  (29,芍药甘草汤,[证候群3]),
+    #  (29,调胃承气汤,[证候群5]),
+    #  (29,四逆汤,[证候群6])]
+    # 条文id相同的再计算段落编号（从0开始，如条文15有段落编号0-1，条文29有段落编号0-4
     #fang_patn:FangPatn
     fang:str
-    patterns:dict[str,Decimal]#证：证的权重，用Decimal，不用float，防止二进制表示会丢失精度，不利于比较
+    #patterns:dict[str,Decimal]#证：证的权重，用Decimal，不用float，防止二进制表示会丢失精度，不利于比较
+    #只存证，证的权重另存与self.patn_weight，保持原始数据不变
+    #所有证候权重都是全局范围统计，且全局唯一
+    patterns:set[str]
 
 class Recommend(BaseModel):
     #clause_id:int
@@ -107,7 +113,7 @@ class Diagnosis:
                     seg_count[id]+=1
                     clause=clauses[id]
                     fang=row[1].strip()
-                    patns={p.strip():Decimal() for p in row[2:]if p.strip()}
+                    patns={p.strip() for p in row[2:]if p.strip()}
                     clause_fang_patns.append(ClauseFangPatn(clause_id=id,clause_seg_id=seg_count[id]-1,fang=fang ,patterns=patns))
         except Exception as e:
 #            print(f"{e.__class__.__name__}:{e}")
@@ -218,7 +224,7 @@ class Diagnosis:
     def consolidate_term(self,includeNorm=True,includeFang=True)->set[str]:
         term_dict:set[str]=set()
         for entry in self.clause_fang_patns:
-            term_dict.update(entry.patterns.keys())
+            term_dict.update(entry.patterns)
         if includeNorm and self.norm!=None:
             term_dict.update(self.norm.keys())
             term_dict.update(self.norm.values())
@@ -412,30 +418,19 @@ class Diagnosis:
         IDF (Inverse Document Frequency) - 逆文档频率
         IDF(s, F) = log(方剂集合 F 中的总方剂数 / 包含证候 s 的方剂数))
         """
-        
-        #转成字典，#key的格式="条文编号-段落编号-方剂名"，顺便归一化证候
-        #TF的分子=证候 s 在方剂 f 中出现的次数=一般为1
-        #TF的分母=条文方剂 c_f 中所有证候的总数
-        clause_fang_patn_dict=defaultdict(lambda:defaultdict(Decimal))
+        #标准化证候，并统计包含它的条文段落数。
+        # IDF=log10(total_seg_count/patn_seg_count)，
+        # 每个标准化的证候所属的条文段落的计数存在此处
+        patn_seg_count_dict=defaultdict(int)#初始值==0
         for entry in self.clause_fang_patns:
-                new_key=f"{entry.clause_id}-{entry.clause_seg_id}"
-                clause_fang_patn_dict[new_key]={self.normalize_term(p,self.norm):Decimal() for p in entry.patterns}
+                for p in entry.patterns:
+                    norm_patn=self.normalize_term(p,self.norm)
+                    patn_seg_count_dict[norm_patn]+=1
 
-        #TF(s, f) = (证候 s 在方剂 f 中出现的次数) / (方剂 f 中所有证候的总数)
-        # tf=defaultdict(lambda:defaultdict(Decimal))
-        # for fang in clause_fang_patn_dict:
-        #     for patn in clause_fang_patn_dict[fang]:
-        #         #避免因二进制浮点数无法精确表示十进制数量而可能出现的问题，使用Decimal,方便相等性测试
-        #         #tf[fang][patn]=Decimal(1)/Decimal(len(clause_fang_patn_dict[fang].keys()))#一个条方的证候不会重复，故总是1
-        #         tf[fang][patn]=Decimal(1)#不再/ (方剂 f 中所有证候的总数)，理由如下：
-                #一向量*常数→不会改变向量的方向（只是在此方向的伸缩）→与查询向量的余弦夹角也不会改变→余弦相似度不变
-                #一个条方的证候不会重复，故目前是1，以后会修改：1. 调整词频饱和度，2.减低文档长度的影响
-                #没有必要，因为余弦相似度公式以方剂证候权重向量和查询权重向量的"模"为分母，
-                # 已经包含长度的影响，且完美归一化，所以简化如下：TF(所有方剂所有patn)=1。
         
         # IDF的分子=方剂集合 F 中的总"条文方剂"数
-        clause_fang_count=len(clause_fang_patn_dict.keys())+Decimal('0.5')
-        #为何+0.5
+        total_seg_count=len(self.clause_fang_patns)+Decimal('0.5')
+        #为何+0.5?
         #若某个证候p出现于所有条文中（实际情况不存在，但理论上存在）
         #则idf=log(N(f)/n(f,p))=log(1)=0，
         #变成idf=log((N(f)+0.5)/n(f,p))=log(1+0.5/n(f,p)) 此数>0，且接近0
@@ -443,33 +438,15 @@ class Diagnosis:
         #为何Decimal？为了后续计算保持精度以及测试数据比较。
 
 
-        #IDF的分母=包含证候 s 的方剂数
-        #patn_fang=defaultdict(set)#同一方剂多次包含算多次,故不用set
-        patn_fang=defaultdict(list)#因为新方名带clause_id和段落索引，不重复，故set list都可以
-        for new_key, patn_dict in clause_fang_patn_dict.items():
-            #fang=regex.match(r"\d+-\d+-(\w+)",new_key).group(1)
-            for patn in patn_dict:
-                #用new_key，不用其中抽取的方剂名。因为本算法不再是1方剂=1文档，而是1条文段落=1文档
-                patn_fang[self.normalize_term(patn,self.norm)].append(new_key)
-        
-        idf=defaultdict(lambda:defaultdict(Decimal))
-        for patn in patn_fang:
+        #IDF的分母=包含证候 p 的条文段落数（一个条文根据脉、证、治的不同分段为多个）
+        idf=defaultdict(Decimal)
+        for patn in patn_seg_count_dict:
             #idf[patn]=Decimal(log(Decimal(len(patn_fang[patn]))/Decimal(fang_count),10))#精度有缺失
-            idf[patn]=(Decimal(clause_fang_count)/Decimal(len(patn_fang[patn]))).log10()#全程不失精度
+            idf[patn]=(Decimal(total_seg_count)/Decimal(patn_seg_count_dict[patn])).log10()#全程不失精度
 
         self.patn_weight=idf
-        #证候特异性全局统一，故不必再按方分类，方剂的影响力体现在余弦相似度的权重向量的"模"上
-        # for fang in clause_fang_patn_dict:
-        #     for patn in clause_fang_patn_dict[fang]:
-        #         #Decimal + 四舍五入 保留精度，方便以后相等性测试
-        #         clause_fang_patn_dict[fang][patn]=(tf[fang][patn]*idf[patn]).quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)
-        
-        # #更新到原始数据
-        # for entry in self.clause_fang_patns:
-        #     new_fang_key=f"{entry.clause_id}-{entry.clause_seg_id}-{entry.fang_patn.fang}"
-        #     for patn in entry.fang_patn.patterns:
-        #         norm_patn=self.normalize_term(patn,self.norm)
-        #         entry.fang_patn.patterns[patn]=clause_fang_patn_dict[new_fang_key][norm_patn]
+        #证候权重全局统一，故不必再按方分类，
+        # 不同条文段落的证候数、证候权重都不同体现在余弦相似度的分母（即权重向量的"模"）上
 
 
      #遍历全部条文，逐个计算，然后排序，全程不会丢失 条文-方剂 对应关系

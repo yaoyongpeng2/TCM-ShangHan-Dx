@@ -144,9 +144,8 @@ class TestDiagnosis(unittest.TestCase):
         seg_count=defaultdict(int)#默认值=0
         for clause_id,fang,patns in clauses:
             seg_count[clause_id]+=1#clause_id有重复=条文被拆分了
-            patterns={p:Decimal() for p in patns}
             clause_fang_patns.append(ClauseFangPatn(clause_id=clause_id,clause_seg_id=seg_count[clause_id]-1,
-                                                    fang=fang,patterns=patterns))
+                                                    fang=fang,patterns=set(patns)))
 
         expected_weight={
             "太阳病":'0.176',"发热":'0.528',"恶风":'0.528',
@@ -209,9 +208,8 @@ class TestDiagnosis(unittest.TestCase):
         seg_count=defaultdict(int)#默认值=0
         for clause_id,fang,patns in raw_input:
             seg_count[clause_id]+=1#clause_id有重复=条文被拆分了
-            patterns={p:Decimal() for p in patns}
             clause_fang_patns.append(ClauseFangPatn(clause_id=clause_id,clause_seg_id=seg_count[clause_id]-1,
-                                                    fang=fang,patterns=patterns))
+                                                    fang=fang,patterns=set(patns)))
 
         expected_weight={
             "证1":'0.023',"证2":'0.075',"证3":'0.133',
@@ -243,18 +241,18 @@ class TestDiagnosis(unittest.TestCase):
                 
         return (norm,clause_fang_patns,expected_weight,expected_recommend_score)
      
-    def prepare_JFSYL_case()->list[list,str]:
+    def prepare_JFSYL_case(self)->list[tuple]:
         split_dict={
             "脉浮缓":{"脉浮","脉缓"}
         }
 
         #《经方实验录》案例：
-        JFSYL_case={
-            1:(["发热","汗出","恶风","头痛","鼻塞","脉浮缓"],"桂枝汤"),
-            2:([],)
-        }
+        JFSYL_case=[
+            (1,["发热","汗出","恶风","头痛","鼻塞","脉浮缓"],"桂枝汤"),
+            (2,[],"")
+        ]
 
-        return (JFSYL_case,) 
+        return (JFSYL_case) 
     def test_load_from_file(self): 
         self.prepare_data()
         diagnosis=Diagnosis()
@@ -287,7 +285,7 @@ class TestDiagnosis(unittest.TestCase):
         norm,clause_fang_patns,expected_weight,scores=self.prepare_SHL_data()
         diagnosis=Diagnosis(norm,clause_fang_patns,Correl.BM25)
         for i in range(len(clause_fang_patns)):
-            query=clause_fang_patns[i].patterns.keys()
+            query=clause_fang_patns[i].patterns
             recommends=diagnosis.recommend_fang(query)
             recommend_scores=[r.match_score.quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)\
                                for r in recommends]
@@ -299,7 +297,7 @@ class TestDiagnosis(unittest.TestCase):
         norm,clause_fang_patns,expected_weight,scores=self.prepare_makeup_data()
         diagnosis=Diagnosis(norm,clause_fang_patns,Correl.BM25)
         for i in range(len(clause_fang_patns)):
-            query=clause_fang_patns[i].patterns.keys()
+            query=clause_fang_patns[i].patterns
             recommends=diagnosis.recommend_fang(query)
             recommend_scores=[r.match_score.quantize(Decimal('0.000'),rounding=ROUND_HALF_UP)\
                                for r in recommends]
@@ -311,7 +309,7 @@ class TestDiagnosis(unittest.TestCase):
         #全局皆无证=所有学习数据里都没有的证候
         no_such_patns=[f'全局皆无证{i}' for i in range(len(clause_fang_patns))]
         for i in range(len(clause_fang_patns)):
-            original_query=set(clause_fang_patns[i].patterns.keys())
+            original_query=set(clause_fang_patns[i].patterns)
             #插入不同数量的不是证候的证（全局皆无证），以模拟干扰项
             #query.extend(no_such_patns[0:i])#错，query是dict_keys类型，不可修改
             query=original_query|set(no_such_patns[0:i+1])
@@ -323,7 +321,7 @@ class TestDiagnosis(unittest.TestCase):
             assert recommend_scores==expected_scores#虽有干扰项，但得分仍然相同，因为全局皆无证的权重==0
 
         #《经方实验录》数据
-        norm,clause_fang_patns=self.prepare_SHL_data()
+        norm,clause_fang_patns,_,_=self.prepare_SHL_data()
         diagnosis=Diagnosis(norm,clause_fang_patns,Correl.BM25)
         JFSYL_data=self.prepare_JFSYL_case()
         for entry in JFSYL_data:
