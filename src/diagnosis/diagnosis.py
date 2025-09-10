@@ -154,7 +154,8 @@ class Diagnosis:
     # 3.无可转换返回自身（如 发热，返回 发热）
     # 
     def normalize_term(self,term,norm:dict[str,str]=None):
-        """高效递归标准化中医术语，带循环保护"""
+        """ 高效循环标准化中医术语，
+            带死循环检测：如{"发热":"发热"}导致死循环，会被检测到"""
         if not norm and not self.norm:
             self.norm=self.load_synonyms()
             norm=self.norm
@@ -163,8 +164,8 @@ class Diagnosis:
         current = term
         
         while True:
-            # 如果已访问过此术语，直接返回（防止循环）
-            if current in visited:
+            # 如果已访问过此术语，直接返回（防止死循环）
+            if current in visited:#检测死循环
                 return current
             
             # 添加当前术语到访问记录
@@ -174,8 +175,45 @@ class Diagnosis:
             if current not in norm:#功能等同norm.keys()，但效率更高
                 return current
             
-            # 否则继续标准化
+            # 否则继续循环
             current = norm[current]
+    @staticmethod
+    def split_term(term,split_dict:dict[str,set], visited:dict[str]=None)->set[str]:
+        """高效递归拆分中医复合概念（如“太阳病”，，“中风”，“伤害”等），如：
+        {
+            "太阳病":{"脉浮","头项强痛","恶寒"},
+            "中风":{"太阳病","发热","汗出","恶风","脉缓"},
+            "伤害":{"太阳病","恶寒","体痛","呕逆","脉阴阳俱紧"}
+        }
+        防死循环检测：如"太阳病":{"太阳病"}会导致死循环，会被检测到"""
+
+        if not split_dict: 
+            return {term}#没有字典，直接返回
+        if visited==None:
+            visited = set()
+        current = term#列表形式
+        result:set[str]=set()
+        
+        while True:
+            # 如果已访问过此术语，直接返回（防止循环）
+            if current in visited:
+                result.add(current)
+                return result
+            
+            # 添加当前术语到访问记录
+            visited.add(current)
+            
+            # 如果当前术语不可拆分，返回
+            if current not in split_dict:
+                result.add(current)
+                return result
+            
+            # 否则继续循环
+            #current = split_dict[current]
+            for t in split_dict[current]:
+                result.update(Diagnosis.split_term(t,split_dict,visited))
+            
+            return result
 
     def consolidate_term(self,includeNorm=True,includeFang=True)->set[str]:
         term_dict:set[str]=set()
